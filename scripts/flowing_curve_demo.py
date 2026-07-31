@@ -273,6 +273,13 @@ def main() -> None:
     p.add_argument('--keep-frames', action='store_true', help='Keep PNG frames after encoding')
     args = p.parse_args()
 
+    if args.width % 2 != 0 or args.height % 2 != 0:
+        raise SystemExit(
+            'Error: --width and --height must both be even for H.264/yuv420p '
+            f'encoding (got {args.width}x{args.height}); '
+            'an odd dimension will fail at the ffmpeg encode step.'
+        )
+
     out_dir = Path(args.output)
     frames_dir = out_dir / '_frames'
     frames_dir.mkdir(parents=True, exist_ok=True)
