@@ -21,7 +21,8 @@ env/
 # Agent tooling (local)
 .tokensave/
 .serena/
-.claude/settings.local.json
+.claude/
+.agents/
 
 # OS
 .DS_Store
