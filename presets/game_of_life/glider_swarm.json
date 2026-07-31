@@ -1,0 +1,19 @@
+{
+  "id": "glider_swarm",
+  "generator": "game_of_life",
+  "name": "Glider Swarm",
+  "description": "Multiple gliders moving in different directions creating intersecting trails",
+  "params": {
+    "initial_pattern": "glider",
+    "grid_scale": 5,
+    "trail_decay": 0.95,
+    "trail_max": 20.0,
+    "colormap": "fire"
+  },
+  "export": {
+    "duration_sec": 3.0,
+    "fps": 30
+  },
+  "tags": ["glider", "dynamic", "colorful"],
+  "version": 1
+}

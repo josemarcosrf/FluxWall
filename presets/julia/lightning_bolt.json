@@ -1,0 +1,25 @@
+{
+  "id": "lightning_bolt",
+  "generator": "julia",
+  "name": "Lightning Bolt",
+  "description": "Dendritic Julia set with branching lightning-like structures",
+  "params": {
+    "c_real": -0.4,
+    "c_imag": 0.6,
+    "zoom": 1.0,
+    "max_iter": 400,
+    "animation_mode": "spin",
+    "spin_radius": 0.721,
+    "spin_speed": 1.2,
+    "zoom_factor_per_frame": 1.0,
+    "color_cycle_speed": 0.04,
+    "smooth_coloring": true,
+    "colormap": "fire"
+  },
+  "export": {
+    "duration_sec": 4.0,
+    "fps": 30
+  },
+  "tags": ["dendritic", "lightning", "flowing"],
+  "version": 1
+}

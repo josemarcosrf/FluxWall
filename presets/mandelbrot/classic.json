@@ -1,0 +1,22 @@
+{
+  "id": "classic",
+  "generator": "mandelbrot",
+  "name": "Classic View",
+  "description": "Full Mandelbrot set at default zoom showing the complete fractal",
+  "params": {
+    "center_x": -0.5,
+    "center_y": 0.0,
+    "zoom": 1.0,
+    "max_iter": 300,
+    "zoom_factor_per_frame": 1.0,
+    "color_cycle_speed": 0.0,
+    "smooth_coloring": true,
+    "colormap": "magma"
+  },
+  "export": {
+    "duration_sec": 4.0,
+    "fps": 30
+  },
+  "tags": ["overview", "classic", "static"],
+  "version": 1
+}

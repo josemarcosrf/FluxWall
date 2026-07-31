@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Agent tooling (local)
+.tokensave/
+.serena/
+.claude/settings.local.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# Project
+*.mp4
+*.mov
+*.heic
+output/
+exports/
+tmp/
+*.manifest.json
+
+# Ruff
+.ruff_cache/
+
+# mypy
+.mypy_cache/
+
+# pytest
+.pytest_cache/
+coverage/
+htmlcov/
+.coverage
+
+# Railway
+.railway/

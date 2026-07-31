@@ -1,0 +1,19 @@
+{
+  "id": "gosper_gun",
+  "generator": "game_of_life",
+  "name": "Gosper Glider Gun",
+  "description": "The classic infinite glider generator that produces a stream of gliders",
+  "params": {
+    "initial_pattern": "gosper_gun",
+    "grid_scale": 3,
+    "trail_decay": 0.9,
+    "trail_max": 40.0,
+    "colormap": "plasma"
+  },
+  "export": {
+    "duration_sec": 4.0,
+    "fps": 30
+  },
+  "tags": ["classic", "glider", "infinite"],
+  "version": 1
+}

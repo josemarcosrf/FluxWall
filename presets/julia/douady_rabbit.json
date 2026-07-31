@@ -1,0 +1,25 @@
+{
+  "id": "douady_rabbit",
+  "generator": "julia",
+  "name": "Douady Rabbit",
+  "description": "The famous rabbit-shaped Julia set with three distinct lobes",
+  "params": {
+    "c_real": -0.123,
+    "c_imag": 0.745,
+    "zoom": 1.2,
+    "max_iter": 300,
+    "animation_mode": "spin",
+    "spin_radius": 0.7885,
+    "spin_speed": 1.0,
+    "zoom_factor_per_frame": 1.0,
+    "color_cycle_speed": 0.03,
+    "smooth_coloring": true,
+    "colormap": "plasma"
+  },
+  "export": {
+    "duration_sec": 4.0,
+    "fps": 30
+  },
+  "tags": ["classic", "rabbit", "spin"],
+  "version": 1
+}

@@ -1,0 +1,22 @@
+{
+  "id": "seahorse_valley",
+  "generator": "mandelbrot",
+  "name": "Seahorse Valley",
+  "description": "Deep zoom into the iconic seahorse valley region at -0.7436+0.1318i",
+  "params": {
+    "center_x": -0.7436438870371587,
+    "center_y": 0.13182590420531197,
+    "zoom": 1000000.0,
+    "max_iter": 2000,
+    "zoom_factor_per_frame": 1.03,
+    "color_cycle_speed": 0.05,
+    "smooth_coloring": true,
+    "colormap": "fire"
+  },
+  "export": {
+    "duration_sec": 5.0,
+    "fps": 30
+  },
+  "tags": ["zoom", "deep", "iconic", "color_cycle"],
+  "version": 1
+}

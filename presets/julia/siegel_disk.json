@@ -1,0 +1,25 @@
+{
+  "id": "siegel_disk",
+  "generator": "julia",
+  "name": "Siegel Disk",
+  "description": "Irrational rotation Julia set with beautiful concentric ring patterns",
+  "params": {
+    "c_real": -0.391,
+    "c_imag": -0.587,
+    "zoom": 1.0,
+    "max_iter": 350,
+    "animation_mode": "spin",
+    "spin_radius": 0.706,
+    "spin_speed": 0.8,
+    "zoom_factor_per_frame": 1.0,
+    "color_cycle_speed": 0.02,
+    "smooth_coloring": true,
+    "colormap": "twilight"
+  },
+  "export": {
+    "duration_sec": 5.0,
+    "fps": 30
+  },
+  "tags": ["rotation", "circular", "calming"],
+  "version": 1
+}

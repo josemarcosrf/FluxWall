@@ -1,0 +1,22 @@
+{
+  "id": "elephant_valley",
+  "generator": "mandelbrot",
+  "name": "Elephant Valley",
+  "description": "Zoom into the elephant valley region with its distinctive trunk-like structures",
+  "params": {
+    "center_x": 0.2845,
+    "center_y": 0.012,
+    "zoom": 100000.0,
+    "max_iter": 1500,
+    "zoom_factor_per_frame": 1.025,
+    "color_cycle_speed": 0.04,
+    "smooth_coloring": true,
+    "colormap": "plasma"
+  },
+  "export": {
+    "duration_sec": 4.0,
+    "fps": 30
+  },
+  "tags": ["zoom", "elephant", "structures"],
+  "version": 1
+}

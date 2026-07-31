@@ -1,0 +1,19 @@
+{
+  "id": "random_soup",
+  "generator": "game_of_life",
+  "name": "Random Soup",
+  "description": "Chaotic evolution from random initial conditions - watch order emerge from chaos",
+  "params": {
+    "initial_pattern": "random",
+    "grid_scale": 4,
+    "trail_decay": 0.92,
+    "trail_max": 30.0,
+    "colormap": "magma"
+  },
+  "export": {
+    "duration_sec": 5.0,
+    "fps": 30
+  },
+  "tags": ["random", "chaos", "emergence"],
+  "version": 1
+}

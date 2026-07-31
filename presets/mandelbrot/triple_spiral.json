@@ -1,0 +1,22 @@
+{
+  "id": "triple_spiral",
+  "generator": "mandelbrot",
+  "name": "Triple Spiral",
+  "description": "Three-armed spiral region with beautiful self-similar details",
+  "params": {
+    "center_x": -0.1011,
+    "center_y": 0.9563,
+    "zoom": 10000.0,
+    "max_iter": 1000,
+    "zoom_factor_per_frame": 1.02,
+    "color_cycle_speed": 0.03,
+    "smooth_coloring": true,
+    "colormap": "twilight"
+  },
+  "export": {
+    "duration_sec": 4.0,
+    "fps": 30
+  },
+  "tags": ["spiral", "zoom", "symmetry"],
+  "version": 1
+}
