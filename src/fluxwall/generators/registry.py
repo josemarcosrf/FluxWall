@@ -70,6 +70,7 @@ def discover_generators() -> None:
     # Import all generator modules to trigger @register_generator decorators
     from fluxwall.generators import (  # noqa: F401
         color_cycle,
+        flowing_curve,
         game_of_life,
         julia,
         l_system,

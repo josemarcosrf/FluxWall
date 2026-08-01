@@ -41,6 +41,7 @@ class GeneratorType(StrEnum):
     JULIA = 'julia'
     L_SYSTEM = 'l_system'
     COLOR_CYCLE = 'color_cycle'
+    FLOWING_CURVE = 'flowing_curve'
 
 
 class ExportFormat(StrEnum):
@@ -166,6 +167,33 @@ class ColorCycleParams(GeneratorParams):
     turbulence: float = 0.0
     octaves: int = 4
     persistence: float = 0.5
+
+
+@dataclass
+class FlowingCurveParams(GeneratorParams):
+    """Parameters for the Flowing Curve generator.
+
+    Modes:
+    - ``uzumaki``: the signature spirograph-style spiral (hardcoded 2000-point
+      recurrence in the original demo, generalized to ``steps``).
+    - ``linear``/``log``/``sqrt``/``sin``/``golden``/``poly``: generic
+      complex-plane recurrences whose phase sweeps with time.
+    """
+
+    mode: str = 'uzumaki'  # uzumaki, linear, log, sqrt, sin, golden, poly
+    steps: int = 2000
+    step_size: float = 0.008
+    omega: float = 0.15
+    exp: float = 0.5
+    mod_freq: float = 0.05
+    mod_amp: float = 0.5
+    line_width: float = 1.0
+    alpha: float = 0.85
+    t_start: float = 0.0
+    t_end: float = 1.0
+    supersample: int = 1
+    blur_decay: float = 0.55
+    auto_limits: bool = True
 
 
 class Preset(BaseModel):
