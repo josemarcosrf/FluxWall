@@ -2,7 +2,7 @@
 """Flowing fractal curve animation — complex-plane recurrences via matplotlib.
 
 Usage:
-  python scripts/flowing_curve_demo.py --mode prescribed
+  python scripts/flowing_curve_demo.py --mode uzumaki
   python scripts/flowing_curve_demo.py --mode sin --steps 3000 --seconds 8 --cmap plasma
   python scripts/flowing_curve_demo.py --mode golden --omega 0.618 --cmap viridis
 """
@@ -87,7 +87,7 @@ def generate_generic(
     return z
 
 
-def generate_prescribed(t: float) -> NDArray[np.complex128]:
+def generate_uzumaki(t: float) -> NDArray[np.complex128]:
     n = np.arange(1, 2001, dtype=np.float64)
     A = (2000 - n) ** 1.5 / (3000 - n)
     inner = 10 * np.cos(100 * t) * np.sin(0.05 * n + 30 * t) + 10 * t
@@ -221,7 +221,7 @@ def render_frame(
 def main() -> None:
     p = argparse.ArgumentParser(description='Flowing fractal curve animation')
     p.add_argument('--mode', default='sin', choices=[
-        'prescribed', 'linear', 'log', 'sqrt', 'sin', 'golden', 'poly',
+        'uzumaki', 'linear', 'log', 'sqrt', 'sin', 'golden', 'poly',
     ], help='Curve mode (default: sin)')
     p.add_argument('--steps', type=int, default=2000, help='Iterations per frame')
     p.add_argument('--step-size', type=float, default=0.008)
@@ -256,9 +256,9 @@ def main() -> None:
     p.add_argument('--supersample', type=int, default=1,
                    help='Sub-samples per output frame, blended with a fading trail '
                         '(motion blur) to smooth fast temporal variation, e.g. in '
-                        '"prescribed" mode. Blends within an already-placed frame; it does '
+                        '"uzumaki" mode. Blends within an already-placed frame; it does '
                         'not change frame timing/placement (use --speed or --t-start/--t-end '
-                        'for that). 1 = off (default). Try 6-10 for prescribed.')
+                        'for that). 1 = off (default). Try 6-10 for uzumaki.')
     p.add_argument('--blur-decay', type=float, default=0.55,
                    help='Alpha falloff per trailing sub-sample when --supersample > 1 '
                         '(default: 0.55; lower = shorter, sharper trail)')
@@ -286,7 +286,7 @@ def main() -> None:
 
     base_frames = int(args.fps * args.seconds)
     total_frames = max(1, int(base_frames * args.speed))
-    is_prescribed = args.mode == 'prescribed'
+    is_uzumaki = args.mode == 'uzumaki'
     fig_size = (args.width / 100, args.height / 100)
 
     fig, ax = plt.subplots(figsize=fig_size, dpi=100)
@@ -298,7 +298,7 @@ def main() -> None:
 
     # Pick the generator function for reuse
     def make_curve(t: float) -> NDArray[np.complex128]:
-        return generate_prescribed(t) if is_prescribed else generate_generic(
+        return generate_uzumaki(t) if is_uzumaki else generate_generic(
             args.steps, args.step_size, args.omega, t * 10, args.mode, args.exp,
         )
 

@@ -466,7 +466,6 @@ def inject_mebx_tracks(mov_path: Path, still_sec: float, fps: int) -> None:
     if not mvhd_list or not trak_list:
         raise LivePhotoError(f'No mvhd/trak found in {mov_path}')
     mvhd_s, mvhd_e = mvhd_list[0]
-    mvhd_timescale = _read_u32_box_field(data, mvhd_s, 20)
     video_trak_s, video_trak_e = trak_list[0]
     video_trak = data[video_trak_s:video_trak_e]
 
@@ -493,12 +492,14 @@ def inject_mebx_tracks(mov_path: Path, still_sec: float, fps: int) -> None:
         raise LivePhotoError(f'No video samples found in {mov_path}')
 
     # live-photo-info track: one 144-byte sample per video frame, but the track
-    # itself always starts ~0.05s after the video (matches real iPhone captures
-    # and IntoLive-converted files alike: 57 samples for a 60-frame/60fps clip).
-    lead_gap_sec = 0.05
-    lead_gap_frames = max(0, min(num_frames - 1, round(lead_gap_sec * fps)))
+    # itself always starts a bit after the video (matches real iPhone captures
+    # and IntoLive-converted files alike: 57 samples for a 60-frame/60fps clip,
+    # i.e. a 5% lead-in gap -- only confirmed at 1s duration so far, applied
+    # proportionally here rather than as a fixed time offset).
+    lead_gap_fraction = 0.05
+    lead_gap_frames = max(0, min(num_frames - 1, round(lead_gap_fraction * num_frames)))
     lpi_num_samples = num_frames - lead_gap_frames
-    lead_gap_ticks_movie = round(lead_gap_sec * mvhd_timescale)
+    lead_gap_ticks_movie = round(lead_gap_fraction * movie_duration)
 
     lpi_ts = int(lpi['timescale'])  # 60000
     sample_delta = lpi_ts // fps
@@ -615,8 +616,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         '--duration',
         type=float,
-        default=3.0,
-        help='Live Photo length in seconds (default: 3)',
+        default=1.0,
+        help='Live Photo length in seconds (default: 1.0)',
     )
     p.add_argument(
         '--start-sec',
