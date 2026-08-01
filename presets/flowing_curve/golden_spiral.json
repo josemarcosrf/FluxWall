@@ -1,0 +1,19 @@
+{
+  "id": "golden_spiral",
+  "generator": "flowing_curve",
+  "name": "Golden Spiral",
+  "description": "Golden-angle spiral with a serene sweeping phase",
+  "params": {
+    "mode": "golden",
+    "omega": 0.618,
+    "step_size": 0.006,
+    "steps": 2000,
+    "colormap": "viridis"
+  },
+  "export": {
+    "duration_sec": 5.0,
+    "fps": 30
+  },
+  "tags": ["golden", "spiral", "phyllotaxis"],
+  "version": 1
+}

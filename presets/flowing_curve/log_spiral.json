@@ -1,0 +1,17 @@
+{
+  "id": "log_spiral",
+  "generator": "flowing_curve",
+  "name": "Log Spiral",
+  "description": "Logarithmic phase spiral",
+  "params": {
+    "mode": "log",
+    "omega": 0.2,
+    "colormap": "inferno"
+  },
+  "export": {
+    "duration_sec": 5.0,
+    "fps": 30
+  },
+  "tags": ["log", "spiral"],
+  "version": 1
+}

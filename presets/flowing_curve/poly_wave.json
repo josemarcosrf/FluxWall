@@ -1,0 +1,18 @@
+{
+  "id": "poly_wave",
+  "generator": "flowing_curve",
+  "name": "Poly Wave",
+  "description": "Power-law phase sweep",
+  "params": {
+    "mode": "poly",
+    "exp": 0.5,
+    "omega": 0.15,
+    "colormap": "twilight"
+  },
+  "export": {
+    "duration_sec": 5.0,
+    "fps": 30
+  },
+  "tags": ["poly", "power", "wave"],
+  "version": 1
+}

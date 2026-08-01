@@ -6,6 +6,7 @@ Available generators:
 - julia: Julia set with spin/zoom animation
 - l_system: L-system fractal plants (scaffolded)
 - color_cycle: Parametric color cycling patterns (scaffolded)
+- flowing_curve: Animated complex-plane curves (uzumaki, golden, sin, ...)
 """
 
 from fluxwall.generators.registry import discover_generators, registry

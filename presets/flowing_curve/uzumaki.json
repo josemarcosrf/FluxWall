@@ -1,0 +1,20 @@
+{
+  "id": "uzumaki",
+  "generator": "flowing_curve",
+  "name": "Uzumaki",
+  "description": "Signature whirlpool spiral with a motion-blurred fading trail",
+  "params": {
+    "mode": "uzumaki",
+    "steps": 2000,
+    "supersample": 8,
+    "blur_decay": 0.55,
+    "line_width": 1.0,
+    "colormap": "magma"
+  },
+  "export": {
+    "duration_sec": 5.0,
+    "fps": 30
+  },
+  "tags": ["uzumaki", "whirlpool", "spiral", "signature"],
+  "version": 1
+}
