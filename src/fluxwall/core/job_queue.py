@@ -6,7 +6,7 @@ import asyncio
 import contextlib
 import uuid
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
@@ -42,6 +42,9 @@ class Job:
     started_at: datetime | None = None
     completed_at: datetime | None = None
     callback: Callable | None = None
+    # Optional async worker that performs the real export. When set, it owns
+    # progress/status mutation and `_execute_job` just awaits it.
+    task: Callable[[Job], Awaitable[None]] | None = None
 
     def to_export_job(self) -> ExportJob:
         return ExportJob(
@@ -94,6 +97,7 @@ class JobQueue:
         params: dict[str, Any],
         options: ExportOptions,
         callback: Callable | None = None,
+        task: Callable[[Job], Awaitable[None]] | None = None,
     ) -> str:
         """Add job to queue."""
         job = Job(
@@ -101,6 +105,7 @@ class JobQueue:
             params=params,
             options=options,
             callback=callback,
+            task=task,
         )
         job.status = JobStatus.QUEUED
         self._queue.append(job)
@@ -174,8 +179,17 @@ class JobQueue:
                         await job.callback(job.to_export_job())
 
     async def _execute_job(self, job: Job) -> None:
-        """Execute the actual export job. Override in subclass."""
-        # This is a placeholder - actual implementation uses generators/exporters
+        """Execute the actual export job.
+
+        Delegates to ``job.task`` when provided (set by callers that know how
+        to run a real export); otherwise falls back to a simulated loop so the
+        queue remains useful on its own.
+        """
+        if job.task is not None:
+            await job.task(job)
+            return
+
+        # Placeholder simulation - actual implementation uses generators/exporters
         total = job.options.fps * int(job.options.duration_sec)
         job.total_frames = total
 
@@ -194,9 +208,13 @@ job_queue = JobQueue()
 
 
 async def init_job_queue(max_concurrent: int = 4) -> JobQueue:
-    """Initialize and start global job queue."""
+    """Initialize and start the global job queue.
+
+    Reuses the module-level singleton so code that imported ``job_queue`` by
+    value (e.g. routes) keeps enqueuing onto the started instance.
+    """
     global job_queue
-    job_queue = JobQueue(max_concurrent)
+    job_queue.max_concurrent = max_concurrent
     await job_queue.start()
     return job_queue
 

@@ -18,16 +18,23 @@ export function Library(): React.JSX.Element {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const iv = window.setInterval(() => {
-      let anyRunning = false;
-      exportStore.all().forEach((job) => {
-        if (job.status === 'running' || job.status === 'pending') {
-          anyRunning = true;
+    const iv = window.setInterval(async () => {
+      const jobs = exportStore.all();
+      for (const job of jobs) {
+        if (job.status !== 'running' && job.status !== 'pending') continue;
+        if (job.serverId) {
+          try {
+            await exportStore.refreshServer(job);
+          } catch {
+            /* transient polling failure: try again next tick */
+          }
+        } else {
           exportStore.status(job);
         }
-      });
+      }
+      const stillRunning = exportStore.all().some((j) => j.status === 'running' || j.status === 'pending');
       force();
-      if (!anyRunning) window.clearInterval(iv);
+      if (!stillRunning) window.clearInterval(iv);
     }, 800);
     return () => window.clearInterval(iv);
   }, []);
@@ -43,7 +50,7 @@ export function Library(): React.JSX.Element {
       <main className="layout">
         <div className="page-head" data-od-id="library-heading">
           <h1>My Exports</h1>
-          <p>Export history lives in your browser for now — jobs appear here when you generate from the studio.</p>
+          <p>Jobs you generate from the studio land here — status and downloads are pulled from the FluxWall API.</p>
         </div>
 
         {jobs.length === 0 && (
@@ -143,6 +150,11 @@ function JobCard({
           <div className="progress" style={{ marginTop: 8 }}>
             <i style={{ width: Math.round(job.progress * 100) + '%' }} />
           </div>
+        )}
+        {job.status === 'failed' && job.error && (
+          <p className="field-note" style={{ marginTop: 6, color: 'var(--err)' }}>
+            {job.error}
+          </p>
         )}
       </div>
       <div className="jactions">

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fluxwall.core.models import GeneratorParams, ExportOptions, ExportFormat, ColorMap, GeneratorType, iPhoneModel
+from fluxwall.core.models import ColorMap, ExportFormat, ExportOptions, GeneratorParams, GeneratorType, iPhoneModel
 
 
 def test_generator_params_defaults():
@@ -11,7 +11,7 @@ def test_generator_params_defaults():
     assert params.height == 2532
     assert params.fps == 30
     assert params.duration_sec == 4.0
-    assert params.colormap == "magma"
+    assert params.colormap == 'magma'
 
 
 def test_generator_params_seed_nullable():
@@ -51,12 +51,12 @@ def test_iphone_model_resolution():
 
 def test_colormap_values():
     values = [cm.value for cm in ColorMap]
-    assert "magma" in values
-    assert "viridis" in values
-    assert "plasma" in values
+    assert 'magma' in values
+    assert 'viridis' in values
+    assert 'plasma' in values
 
 
 def test_generator_type_values():
-    assert GeneratorType.GAME_OF_LIFE.value == "game_of_life"
-    assert GeneratorType.MANDELBROT.value == "mandelbrot"
-    assert GeneratorType.JULIA.value == "julia"
+    assert GeneratorType.GAME_OF_LIFE.value == 'game_of_life'
+    assert GeneratorType.MANDELBROT.value == 'mandelbrot'
+    assert GeneratorType.JULIA.value == 'julia'

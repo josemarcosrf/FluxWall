@@ -75,6 +75,10 @@ export interface ExportJob {
   status: JobStatus;
   progress: number;
   poster: string | null;
+  /** Backend job id + download URL when the job is running server-side. */
+  serverId?: string;
+  downloadUrl?: string | null;
+  error?: string | null;
 }
 
 export interface OutputOptions {

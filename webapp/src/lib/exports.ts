@@ -1,10 +1,12 @@
 // Export job store (localStorage-persisted history) + honest size estimate.
-// Ported from the prototype's app layer.
+// Ported from the prototype's app layer. Jobs can be backed by the real
+// backend (serverId set) — status is then polled from the API.
 
 import type { ExportJob, JobStatus, Params } from './types';
 import { generatorByName } from './data';
 import { renderStill } from './render';
 import { storeGet, storeSet } from './store';
+import { api, absUrl } from './api';
 
 export function estimateSize(w: number, h: number, fps: number, duration: number): number {
   return (w * h * 3 * fps * duration) / (1024 * 1024);
@@ -84,6 +86,40 @@ export const exportStore = {
     return { status: 'running', progress: Math.min(0.99, (now - job.created) / (job.finishAt - job.created)) };
   },
 
+  /** Attach the backend job id + download URL to a locally-created job. */
+  setServer(job: ExportJob, serverId: string, downloadUrl: string | null): void {
+    job.serverId = serverId;
+    job.downloadUrl = downloadUrl ?? null;
+    save(this.all());
+  },
+
+  /** Mark a job failed (e.g. the backend rejected the export request). */
+  fail(job: ExportJob, message: string): void {
+    job.status = 'failed';
+    job.progress = 1;
+    job.error = message;
+    save(this.all());
+  },
+
+  /**
+   * Refresh a server-backed job from the API. Returns true when the job
+   * reached a terminal state.
+   */
+  async refreshServer(job: ExportJob): Promise<boolean> {
+    if (!job.serverId) return false;
+    const s = await api.jobStatus(job.serverId);
+    job.status = s.status === 'cancelled' ? 'failed' : (s.status as JobStatus);
+    job.progress = s.status === 'failed' ? 1 : s.progress;
+    if (job.status === 'completed') {
+      job.progress = 1;
+      job.poster = this.renderPoster(job);
+      if (s.download_url) job.downloadUrl = s.download_url;
+    }
+    if (job.status === 'failed') job.error = s.error ?? 'Export failed';
+    save(this.all());
+    return job.status === 'completed' || job.status === 'failed';
+  },
+
   renderPoster(job: ExportJob): string | null {
     try {
       const cv = document.createElement('canvas');
@@ -99,6 +135,10 @@ export const exportStore = {
   },
 
   download(job: ExportJob): void {
+    if (job.downloadUrl) {
+      window.open(absUrl(job.downloadUrl), '_blank');
+      return;
+    }
     const data = job.poster;
     if (!data) return;
     const a = document.createElement('a');

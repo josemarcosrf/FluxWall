@@ -154,7 +154,7 @@ def export_video_opencv(
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    fourcc = cv2.VideoWriter_fourcc(*codec)
+    fourcc = cv2.VideoWriter_fourcc(*codec)  # type: ignore[attr-defined]
     writer = cv2.VideoWriter(
         str(output_path),
         fourcc,

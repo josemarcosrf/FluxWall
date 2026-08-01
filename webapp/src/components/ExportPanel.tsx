@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import type { ExportJob, Generator, OutputOptions, Params } from '../lib/types';
 import { FORMATS, resolutionFor } from '../lib/data';
 import { estimateSize, exportStore } from '../lib/exports';
+import { USE_API, api } from '../lib/api';
 import { Notice } from './ui';
 
 interface ExportPanelProps {
@@ -22,15 +23,25 @@ export function ExportPanel({ gen, preset, params, output, onFormatChange }: Exp
 
   useEffect(() => {
     if (!running) return;
-    const iv = window.setInterval(() => {
-      const s = exportStore.status(running);
-      setPct(Math.round(s.progress * 100));
-      setEta(Math.max(0, Math.round((running.finishAt - Date.now()) / 1000)));
-      if (s.status === 'completed' || s.status === 'failed') {
+    const iv = window.setInterval(async () => {
+      let finished = false;
+      if (USE_API && running.serverId) {
+        try {
+          finished = await exportStore.refreshServer(running);
+        } catch {
+          finished = true;
+        }
+      } else if (!USE_API) {
+        const s = exportStore.status(running);
+        finished = s.status === 'completed' || s.status === 'failed';
+      }
+      setPct(Math.round(running.progress * 100));
+      setEta(running.serverId ? 0 : Math.max(0, Math.round((running.finishAt - Date.now()) / 1000)));
+      if (finished) {
         setDone(true);
         window.clearInterval(iv);
       }
-    }, 300);
+    }, 600);
     return () => window.clearInterval(iv);
   }, [running]);
 
@@ -56,6 +67,28 @@ export function ExportPanel({ gen, preset, params, output, onFormatChange }: Exp
     setPct(0);
     setDone(false);
     setEta(0);
+
+    if (USE_API) {
+      api
+        .startExport({
+          generator: gen.name,
+          params: { ...params, colormap: output.colormap },
+          options: {
+            format: output.format,
+            iphone_model: output.device,
+            fps: output.fps,
+            duration_sec: output.duration,
+            quality: 90,
+          },
+        })
+        .then((start) => {
+          exportStore.setServer(job, start.job_id, start.download_url);
+        })
+        .catch((err: Error) => {
+          exportStore.fail(job, err?.message ?? String(err));
+          setDone(true);
+        });
+    }
   };
 
   return (
@@ -130,7 +163,9 @@ export function ExportPanel({ gen, preset, params, output, onFormatChange }: Exp
                 Download
               </button>
               <div className="field-note" id="ep-note">
-                Static build &mdash; the download is a preview still (PNG) until the local API is wired for real encoding.
+                {USE_API
+                  ? 'The encoded file is generated on the server — the download opens the real export.'
+                  : 'Static build — the download is a preview still (PNG) until the local API is wired for real encoding.'}
               </div>
             </>
           )}
