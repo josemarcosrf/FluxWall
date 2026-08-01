@@ -55,3 +55,9 @@ htmlcov/
 
 # Railway
 .railway/
+
+# Node / webapp (React)
+node_modules/
+webapp/dist/
+webapp/node_modules/
+*.tsbuildinfo

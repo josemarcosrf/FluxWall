@@ -31,6 +31,22 @@ test:
 test-cov:
 	uv run pytest tests --cov=fluxwall --cov-report=term-missing
 
+# ─── Webapp (React) ──────────────────────────────────────────
+webapp-install:
+	cd webapp && npm install
+
+webapp-dev:
+	cd webapp && npm run dev
+
+webapp-build:
+	cd webapp && npm run build
+
+webapp-check:
+	cd webapp && npx tsc -b
+
+webapp-preview:
+	cd webapp && npm run preview
+
 # ─── Export / Build ───────────────────────────────────────────
 export-presets:
 	uv run python scripts/export_presets.py --all --output ./exports
