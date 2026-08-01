@@ -15,8 +15,11 @@ This script:
    animation is shown and at what tempo — so the time signature of the source
    (e.g. high-fps slow-motion regions) is under your control, not flattened.
 2. Extracts a still frame and encodes it as HEIC (``pillow-heif``).
-3. Adds the ``com.apple.quicktime.still-image-time`` timed-metadata track
-   (mebx) to the MOV — the track iOS needs to enable lock-screen motion.
+3. Adds the iOS timed-metadata tracks (mebx) to the MOV — ``live-photo-info``
+   (one 144-byte sample per video frame) and ``still-image-time`` (the 89-byte
+   sample that marks the still moment). These are copied from a real iPhone
+   Live Photo template and re-timed to the output; without them the pair shows
+   in Photos but the lock screen reports "Motion Not Available".
 4. Stamps the shared ContentIdentifier into both files (``makelive``, macOS).
 5. Writes a ``manifest.json`` and a ``.pvt`` bundle that imports into macOS
    Photos by double-clicking (then syncs to an iPhone via iCloud).
@@ -31,10 +34,13 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import struct
 import subprocess
 import sys
 import uuid
+from collections.abc import Iterator
 from dataclasses import asdict
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -50,6 +56,10 @@ MODEL_PRESETS: dict[str, tuple[int, int]] = {
     'pro-old': (1170, 2532),  # iPhone 14/13/12 Pro
     'se': (750, 1334),  # iPhone SE / 8
 }
+
+# Confirmed working as a Lock Screen Live Wallpaper (matches a real Live
+# Photo pair extracted from an iPhone: vendor-livp/IMG_7725.MOV/.HEIC).
+DEFAULT_RESOLUTION = (1080, 1920)
 
 HEVC_VT_Q = 65
 
@@ -228,6 +238,63 @@ def stamp_live_photo(still_heic: Path, motion_mov: Path, asset_id: str) -> None:
         )
 
 
+def stamp_device_metadata(motion_mov: Path) -> None:
+    """Add ``com.apple.quicktime.{make,model,software,creationdate}`` metadata.
+
+    Real iPhone Live Photo MOVs carry these QuickTime metadata items; a
+    synthetic MOV built by ffmpeg has none of them. Writes only the movie
+    header in place (same technique makelive uses for ContentIdentifier), so
+    all track data including the mebx tracks is preserved untouched.
+    """
+    import AVFoundation  # type: ignore[import-untyped]
+    import objc  # type: ignore[import-untyped]
+    from Foundation import NSURL  # type: ignore[import-untyped]
+
+    def _item(key: str, value: str) -> 'AVFoundation.AVMutableMetadataItem':
+        item = AVFoundation.AVMutableMetadataItem.metadataItem()
+        item.setKey_(key)
+        item.setKeySpace_('mdta')
+        item.setValue_(value)
+        item.setDataType_('com.apple.metadata.datatype.UTF-8')
+        return item
+
+    device_keys = {
+        'com.apple.quicktime.make',
+        'com.apple.quicktime.model',
+        'com.apple.quicktime.software',
+        'com.apple.quicktime.creationdate',
+    }
+    with objc.autorelease_pool():
+        url = NSURL.fileURLWithPath_(str(motion_mov))
+        movie, error = AVFoundation.AVMutableMovie.movieWithURL_options_error_(url, None, None)
+        if movie is None:
+            raise LivePhotoError(
+                f'Could not open {motion_mov} as AVMutableMovie: {error.description() if error else "unknown error"}'
+            )
+
+        existing = [
+            item
+            for item in (movie.metadata() or [])
+            if not (str(item.keySpace()) == 'mdta' and str(item.key()) in device_keys)
+        ]
+        creation_date = datetime.now().astimezone().strftime('%Y-%m-%dT%H:%M:%S%z')
+        new_items = [
+            _item('com.apple.quicktime.make', 'Apple'),
+            _item('com.apple.quicktime.model', 'iPhone'),
+            _item('com.apple.quicktime.software', '18.7'),
+            _item('com.apple.quicktime.creationdate', creation_date),
+        ]
+        movie.setMetadata_(existing + new_items)
+
+        success, error = movie.writeMovieHeaderToURL_fileType_options_error_(
+            url, AVFoundation.AVFileTypeQuickTimeMovie, 0, None
+        )
+        if not success:
+            raise LivePhotoError(
+                f'writeMovieHeaderToURL failed for {motion_mov}: {error.description() if error else "unknown error"}'
+            )
+
+
 def write_manifest(
     out_dir: Path,
     asset_id: str,
@@ -250,119 +317,256 @@ def write_manifest(
         json.dump(asdict(manifest), f, indent=2)
 
 
-def add_still_image_time(mov_path: Path, still_sec: float) -> None:
-    """Add the ``com.apple.quicktime.still-image-time`` timed-metadata track.
+# Template data for the iOS mebx timed-metadata tracks. Extracted from a real
+# iPhone Live Photo MOV (vendor-livp/IMG_7673.MOV); the static boxes (stsd, hdlr,
+# gmhd, dref, elst) and the sample bytes are replayed verbatim, only the timing
+# (stts/stsc/stsz/stco) and track ids are recomputed for the output video.
+_MEBX_TEMPLATE = Path(__file__).resolve().parent / '_mebx_template.json'
 
-    iOS reads this mebx track to know where the still frame sits in the video;
-    without it the pair shows in Photos but the lock screen reports "Motion Not
-    Available". ffmpeg cannot write mebx tracks (it drops them even on `-c copy`),
-    so this re-muxes the video with AVFoundation (sample passthrough, no
-    re-encode) and appends the single-sample timed-metadata track via an
-    AVAssetWriter metadata adaptor. The writer emits a leading empty edit, so the
-    sample's presentation time equals the still moment — matching real iPhone
-    Live Photo MOVs.
+
+def _iter_boxes(data: bytes, start: int, end: int) -> Iterator[tuple[bytes, int, int]]:
+    """Yield ``(box_type, box_start, box_end)`` for boxes within ``data[start:end]``."""
+    pos = start
+    while pos + 8 <= end:
+        size = struct.unpack('>I', data[pos : pos + 4])[0]
+        box_type = data[pos + 4 : pos + 8]
+        header = 8
+        if size == 1:
+            size = struct.unpack('>Q', data[pos + 8 : pos + 16])[0]
+            header = 16
+        elif size == 0:
+            size = end - pos
+        if size < header or pos + size > end:
+            break
+        yield box_type, pos, pos + size
+        pos += size
+
+
+def _find_box(data: bytes, box_type: bytes, start: int, end: int) -> list[tuple[int, int]]:
+    """Return ``(start, end)`` of the direct-child boxes of ``box_type``."""
+    return [(s, e) for t, s, e in _iter_boxes(data, start, end) if t == box_type]
+
+
+def _box(box_type: bytes, *parts: bytes) -> bytes:
+    """Build a box from its 4-byte type and payload parts."""
+    payload = b''.join(parts)
+    return struct.pack('>I4s', 8 + len(payload), box_type) + payload
+
+
+def _fullbox(flags: int, payload: bytes) -> bytes:
+    """Build a version-0 full box body (version/flags followed by payload)."""
+    return struct.pack('>I', flags) + payload
+
+
+def _elst_box(entries: list[tuple[int, int]]) -> bytes:
+    """Build an edit-list box; ``media_time`` of -1 marks an empty edit."""
+    payload = struct.pack('>I', len(entries))
+    for segment_duration, media_time in entries:
+        payload += struct.pack('>IiHH', segment_duration, media_time, 1, 0)
+    return _box(b'elst', _fullbox(0, payload))
+
+
+def _stts_box(entries: list[tuple[int, int]]) -> bytes:
+    """Build a sample-to-time box from ``(sample_count, delta)`` runs."""
+    payload = struct.pack('>I', len(entries))
+    for count, delta in entries:
+        payload += struct.pack('>II', count, delta)
+    return _box(b'stts', _fullbox(0, payload))
+
+
+def _stsc_box(entries: list[tuple[int, int, int]]) -> bytes:
+    """Build a sample-to-chunk box from ``(first_chunk, samples_per_chunk, desc)`` runs."""
+    payload = struct.pack('>I', len(entries))
+    for first_chunk, samples_per_chunk, desc_index in entries:
+        payload += struct.pack('>III', first_chunk, samples_per_chunk, desc_index)
+    return _box(b'stsc', _fullbox(0, payload))
+
+
+def _stsz_box(sample_size: int, sample_count: int) -> bytes:
+    """Build a sample-size box for uniformly sized samples."""
+    return _box(b'stsz', _fullbox(0, struct.pack('>II', sample_size, sample_count)))
+
+
+def _stco_box(chunk_offsets: list[int]) -> bytes:
+    """Build a chunk-offset box."""
+    payload = struct.pack('>I', len(chunk_offsets))
+    for offset in chunk_offsets:
+        payload += struct.pack('>I', offset)
+    return _box(b'stco', _fullbox(0, payload))
+
+
+def _build_trak(
+    tkhd: bytes,
+    mdhd: bytes,
+    mdia_hdlr: bytes,
+    gmhd: bytes,
+    minf_hdlr: bytes,
+    dref: bytes,
+    stsd: bytes,
+    elst: bytes,
+    stts: bytes,
+    stsc: bytes,
+    stsz: bytes,
+    stco: bytes,
+) -> bytes:
+    """Assemble a track box from its static template boxes + computed tables."""
+    stbl = _box(b'stbl', stsd, stts, stsc, stsz, stco)
+    minf = _box(b'minf', gmhd, minf_hdlr, _box(b'dinf', dref), stbl)
+    mdia = _box(b'mdia', mdhd, mdia_hdlr, minf)
+    return _box(b'trak', tkhd, _box(b'edts', elst), mdia)
+
+
+def _patch_track_timing(
+    tkhd: bytes, mdhd: bytes, track_id: int, tkhd_duration: int, mdhd_duration: int
+) -> tuple[bytes, bytes]:
+    """Patch the track id and durations into template tkhd/mdhd boxes."""
+    tkhd_buf = bytearray(tkhd)
+    tkhd_buf[20:24] = struct.pack('>I', track_id)
+    tkhd_buf[28:32] = struct.pack('>I', tkhd_duration)
+    mdhd_buf = bytearray(mdhd)
+    mdhd_buf[24:28] = struct.pack('>I', mdhd_duration)
+    return bytes(tkhd_buf), bytes(mdhd_buf)
+
+
+def _read_u32_box_field(data: bytes, box_start: int, field_offset: int) -> int:
+    return int(struct.unpack('>I', data[box_start + field_offset : box_start + field_offset + 4])[0])
+
+
+def inject_mebx_tracks(mov_path: Path, still_sec: float, fps: int) -> None:
+    """Add the ``live-photo-info`` and ``still-image-time`` mebx tracks to a MOV.
+
+    iOS reads these timed-metadata tracks to enable lock-screen Live Wallpaper
+    motion. ffmpeg drops mebx tracks even on ``-c copy``, and AVFoundation only
+    emits a single 1-byte ``still-image-time`` sample — which Photos ignores, so
+    the lock screen reports "Motion Not Available". Real iPhone Live Photo MOVs
+    carry a ``live-photo-info`` track (one 144-byte sample per video frame) plus
+    a ``still-image-time`` track whose single 89-byte sample marks the still
+    moment. This re-muxes the video byte-for-byte (no re-encode) and appends both
+    tracks, reusing the template's static boxes and sample bytes verbatim while
+    recomputing the sample tables and track ids for this video.
     """
-    import threading
-    import time
-
-    try:
-        import AVFoundation  # type: ignore[import-untyped]
-        import CoreMedia  # type: ignore[import-untyped]
-        from Foundation import NSURL, NSNumber  # type: ignore[import-untyped]
-    except ImportError as exc:
+    if not _MEBX_TEMPLATE.is_file():
         raise LivePhotoError(
-            'makelive (AVFoundation) is required to write the still-image-time track.\n'
-            '  Install it (macOS only) with: uv sync --extra livephoto'
-        ) from exc
+            f'Missing Live Photo template {_MEBX_TEMPLATE.name} '
+            '(extracted from a real iPhone Live Photo, vendor-livp/IMG_7673.MOV).'
+        )
+    tpl = json.loads(_MEBX_TEMPLATE.read_text())
+    lpi = tpl['lpi']
+    sit = tpl['sit']
 
-    url = NSURL.fileURLWithPath_(str(mov_path))
-    asset = AVFoundation.AVURLAsset.assetWithURL_(url)
-    tracks = asset.tracksWithMediaType_(AVFoundation.AVMediaTypeVideo)
-    if not tracks:
-        raise LivePhotoError(f'No video track found in {mov_path}')
-    video_track = tracks[0]
+    data = mov_path.read_bytes()
+    top = {t: (s, e) for t, s, e in _iter_boxes(data, 0, len(data))}
+    if b'moov' not in top or b'mdat' not in top:
+        raise LivePhotoError(f'Expected a moov+mdat layout in {mov_path}')
+    moov_s, moov_e = top[b'moov']
+    children_start = moov_s + 8
+
+    mvhd_list = _find_box(data, b'mvhd', children_start, moov_e)
+    trak_list = _find_box(data, b'trak', children_start, moov_e)
+    if not mvhd_list or not trak_list:
+        raise LivePhotoError(f'No mvhd/trak found in {mov_path}')
+    mvhd_s, mvhd_e = mvhd_list[0]
+    mvhd_timescale = _read_u32_box_field(data, mvhd_s, 20)
+    video_trak_s, video_trak_e = trak_list[0]
+    video_trak = data[video_trak_s:video_trak_e]
+
+    # Movie timescale + duration come from the ffmpeg video track.
+    tkhd_list = _find_box(video_trak, b'tkhd', 8, len(video_trak))
+    if not tkhd_list:
+        raise LivePhotoError(f'No tkhd found in video track of {mov_path}')
+    movie_duration = _read_u32_box_field(video_trak, tkhd_list[0][0], 28)
+
+    # Number of video frames from the stts table (all runs summed).
+    num_frames = 0
+    mdia_list = _find_box(video_trak, b'mdia', 8, len(video_trak))
+    mdia_s, mdia_e = mdia_list[0]
+    minf_list = _find_box(video_trak, b'minf', mdia_s + 8, mdia_e)
+    minf_s, minf_e = minf_list[0]
+    stbl_list = _find_box(video_trak, b'stbl', minf_s + 8, minf_e)
+    stbl_s, stbl_e = stbl_list[0]
+    for stts_s, _stts_e in _find_box(video_trak, b'stts', stbl_s + 8, stbl_e):
+        entry_count = _read_u32_box_field(video_trak, stts_s, 12)
+        for i in range(entry_count):
+            base = stts_s + 16 + i * 8
+            num_frames += struct.unpack('>I', video_trak[base : base + 4])[0]
+    if num_frames == 0:
+        raise LivePhotoError(f'No video samples found in {mov_path}')
+
+    # live-photo-info track: one 144-byte sample per video frame, but the track
+    # itself always starts ~0.05s after the video (matches real iPhone captures
+    # and IntoLive-converted files alike: 57 samples for a 60-frame/60fps clip).
+    lead_gap_sec = 0.05
+    lead_gap_frames = max(0, min(num_frames - 1, round(lead_gap_sec * fps)))
+    lpi_num_samples = num_frames - lead_gap_frames
+    lead_gap_ticks_movie = round(lead_gap_sec * mvhd_timescale)
+
+    lpi_ts = int(lpi['timescale'])  # 60000
+    sample_delta = lpi_ts // fps
+    lpi_sample = bytes.fromhex(lpi['samples'][0])
+    lpi_mdhd_dur = lpi_num_samples * sample_delta
+    lpi_elst = _elst_box([(lead_gap_ticks_movie, -1), (movie_duration - lead_gap_ticks_movie, 0)])
+    lpi_tkhd, lpi_mdhd = _patch_track_timing(
+        bytes.fromhex(lpi['tkhd']), bytes.fromhex(lpi['mdhd']), 2, movie_duration, lpi_mdhd_dur
+    )
+
+    # still-image-time track: single 89-byte sample placed at the still moment.
+    sit_ts = int(sit['timescale'])  # 600
+    sit_sample = bytes.fromhex(sit['samples'][0])
+    still_ticks = int(round(still_sec * sit_ts))
+    still_ticks = max(still_ticks, 0)
+    sit_elst = _elst_box([(still_ticks, -1), (1, 0)]) if still_ticks else _elst_box([(1, 0)])
+    sit_tkhd_dur = still_ticks + 1
+    sit_tkhd, sit_mdhd = _patch_track_timing(bytes.fromhex(sit['tkhd']), bytes.fromhex(sit['mdhd']), 3, sit_tkhd_dur, 1)
+
+    # mebx samples are appended in their own mdat right after the video mdat.
+    mebx_data = lpi_sample * lpi_num_samples + sit_sample
+    mebx_data_start = moov_s + 8
+    lpi_chunk_offset = mebx_data_start
+    sit_chunk_offset = lpi_chunk_offset + lpi_num_samples * len(lpi_sample)
+
+    lpi_trak = _build_trak(
+        lpi_tkhd,
+        lpi_mdhd,
+        bytes.fromhex(lpi['mdia_hdlr']),
+        bytes.fromhex(lpi['gmhd']),
+        bytes.fromhex(lpi['minf_hdlr']),
+        bytes.fromhex(lpi['dref']),
+        bytes.fromhex(lpi['stsd']),
+        lpi_elst,
+        _stts_box([(lpi_num_samples, sample_delta)]),
+        _stsc_box([(1, lpi_num_samples, 1)]),
+        _stsz_box(len(lpi_sample), lpi_num_samples),
+        _stco_box([lpi_chunk_offset]),
+    )
+    sit_trak = _build_trak(
+        sit_tkhd,
+        sit_mdhd,
+        bytes.fromhex(sit['mdia_hdlr']),
+        bytes.fromhex(sit['gmhd']),
+        bytes.fromhex(sit['minf_hdlr']),
+        bytes.fromhex(sit['dref']),
+        bytes.fromhex(sit['stsd']),
+        sit_elst,
+        _stts_box([(1, 1)]),
+        _stsc_box([(1, 1, 1)]),
+        _stsz_box(len(sit_sample), 1),
+        _stco_box([sit_chunk_offset]),
+    )
+
+    mvhd = bytearray(data[mvhd_s:mvhd_e])
+    if len(mvhd) >= 108:
+        mvhd[104:108] = struct.pack('>I', 4)  # next_track_id = 4
+
+    # Keep the original moov children (mvhd, udta, ...) in order, replacing the
+    # video trak and appending the two mebx traks. mvhd is emitted (patched)
+    # below, so it must not be duplicated from the source moov.
+    other_children = [data[s:e] for t, s, e in _iter_boxes(data, children_start, moov_e) if t not in (b'trak', b'mvhd')]
+    new_moov = _box(b'moov', bytes(mvhd), *other_children, video_trak, lpi_trak, sit_trak)
+    new_mdat = _box(b'mdat', mebx_data)
 
     tmp_path = mov_path.with_name(f'{mov_path.stem}.mebx.mov')
-
-    reader, rerr = AVFoundation.AVAssetReader.assetReaderWithAsset_error_(asset, None)
-    if reader is None:
-        raise LivePhotoError(f'AVAssetReader could not open {mov_path}: {rerr}')
-    reader_output = AVFoundation.AVAssetReaderTrackOutput.alloc().initWithTrack_outputSettings_(video_track, None)
-    reader_output.setAlwaysCopiesSampleData_(False)
-    reader.addOutput_(reader_output)
-
-    writer, werr = AVFoundation.AVAssetWriter.assetWriterWithURL_fileType_error_(
-        NSURL.fileURLWithPath_(str(tmp_path)), AVFoundation.AVFileTypeQuickTimeMovie, None
-    )
-    if writer is None:
-        raise LivePhotoError(f'AVAssetWriter could not create {tmp_path}: {werr}')
-
-    video_input = AVFoundation.AVAssetWriterInput.alloc().initWithMediaType_outputSettings_sourceFormatHint_(
-        AVFoundation.AVMediaTypeVideo, None, video_track.formatDescriptions()[0]
-    )
-    writer.addInput_(video_input)
-
-    spec = {
-        CoreMedia.kCMMetadataFormatDescriptionMetadataSpecificationKey_Identifier: (
-            'mdta/com.apple.quicktime.still-image-time'
-        ),
-        CoreMedia.kCMMetadataFormatDescriptionMetadataSpecificationKey_DataType: ('com.apple.metadata.datatype.int8'),
-    }
-    status, metadata_desc = CoreMedia.CMMetadataFormatDescriptionCreateWithMetadataSpecifications(
-        None, CoreMedia.kCMMetadataFormatType_Boxed, [spec], None
-    )
-    if status != 0:
-        raise LivePhotoError(f'Could not build still-image-time metadata description: status {status}')
-    metadata_input = AVFoundation.AVAssetWriterInput.alloc().initWithMediaType_outputSettings_sourceFormatHint_(
-        AVFoundation.AVMediaTypeMetadata, None, metadata_desc
-    )
-    writer.addInput_(metadata_input)
-    adaptor = AVFoundation.AVAssetWriterInputMetadataAdaptor.alloc().initWithAssetWriterInput_(metadata_input)
-
-    try:
-        if not writer.startWriting():
-            raise LivePhotoError(f'AVAssetWriter startWriting failed: {writer.error()}')
-        if not reader.startReading():
-            raise LivePhotoError(f'AVAssetReader startReading failed: {reader.error()}')
-        writer.startSessionAtSourceTime_(CoreMedia.kCMTimeZero)
-
-        item = AVFoundation.AVMutableMetadataItem.metadataItem()
-        item.setKey_('com.apple.quicktime.still-image-time')
-        item.setKeySpace_(AVFoundation.AVMetadataKeySpaceQuickTimeMetadata)
-        item.setValue_(NSNumber.numberWithInt_(-1))
-        item.setDataType_('com.apple.metadata.datatype.int8')
-        still_time = CoreMedia.CMTimeMake(int(still_sec * 600), 600)
-        group = AVFoundation.AVTimedMetadataGroup.alloc().initWithItems_timeRange_(
-            [item], CoreMedia.CMTimeRangeMake(still_time, CoreMedia.CMTimeMake(1, 600))
-        )
-        if not adaptor.appendTimedMetadataGroup_(group):
-            raise LivePhotoError(f'Could not append still-image-time metadata: {writer.error()}')
-        metadata_input.markAsFinished()
-
-        done = False
-        while not done:
-            while video_input.isReadyForMoreMediaData():
-                sample = reader_output.copyNextSampleBuffer()
-                if sample is None:
-                    video_input.markAsFinished()
-                    done = True
-                    break
-                if not video_input.appendSampleBuffer_(sample):
-                    raise LivePhotoError(f'Failed to write video samples: {writer.error()}')
-            if not done:
-                time.sleep(0.002)
-
-        reader.cancelReading()
-        finished = threading.Event()
-        writer.finishWritingWithCompletionHandler_(finished.set)
-        if not finished.wait(120):
-            raise LivePhotoError('Timed out waiting for AVAssetWriter to finish')
-        if writer.status() != AVFoundation.AVAssetWriterStatusCompleted:
-            raise LivePhotoError(f'AVAssetWriter failed: {writer.error()}')
-
-        tmp_path.replace(mov_path)
-    finally:
-        tmp_path.unlink(missing_ok=True)
+    tmp_path.write_bytes(data[:moov_s] + new_mdat + new_moov)
+    tmp_path.replace(mov_path)
 
 
 def make_pvt(out_dir: Path, base_name: str, asset_id: str) -> Path:
@@ -401,12 +605,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         '--model',
         choices=sorted(MODEL_PRESETS),
-        default='pro',
-        help='iPhone preset resolution (default: pro = 15/16 Pro). Overridden by --width/--height.',
+        default=None,
+        help='iPhone preset resolution. Overridden by --width/--height. '
+        'Default: 1080x1920 (confirmed working as a Lock Screen Live Wallpaper).',
     )
     p.add_argument('--width', type=int, help='Output width (overrides --model)')
     p.add_argument('--height', type=int, help='Output height (overrides --model)')
-    p.add_argument('--fps', type=int, default=30, help='Output frame rate (default: 30)')
+    p.add_argument('--fps', type=int, default=60, help='Output frame rate (default: 60)')
     p.add_argument(
         '--duration',
         type=float,
@@ -430,8 +635,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         '--still-sec',
         type=float,
-        default=1.0,
-        help='Frame (in output time) to use as the HEIC still (default: 1)',
+        default=None,
+        help='Frame (in output time) to use as the HEIC still (default: middle of the clip)',
     )
     p.add_argument(
         '--codec',
@@ -467,8 +672,10 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if args.width is not None and args.height is not None:
         width, height = args.width, args.height
-    else:
+    elif args.model is not None:
         width, height = MODEL_PRESETS[args.model]
+    else:
+        width, height = DEFAULT_RESOLUTION
     width, height = even_resolution(width, height)
 
     if args.speed <= 0:
@@ -521,7 +728,8 @@ def main(argv: list[str] | None = None) -> int:
     if clamped:
         print(f'  Note:    source too short for full window; effective speed {args.speed:g}x over {duration:.2f}s')
 
-    still_sec = min(max(args.still_sec, 0.0), duration - 1.0 / args.fps)
+    still_sec_requested = args.still_sec if args.still_sec is not None else duration / 2
+    still_sec = min(max(still_sec_requested, 0.0), duration - 1.0 / args.fps)
 
     print('  Encoding motion.mov …', end=' ', flush=True)
     transcode_motion(
@@ -542,8 +750,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     print('ok')
 
-    print(f'  Adding still-image-time track @ {still_sec:.2f}s …', end=' ', flush=True)
-    add_still_image_time(motion_path, still_sec)
+    print(f'  Adding live-photo-info + still-image-time tracks @ {still_sec:.2f}s …', end=' ', flush=True)
+    inject_mebx_tracks(motion_path, still_sec, args.fps)
     print('ok')
 
     print(f'  Extracting still @ {still_sec:.2f}s …', end=' ', flush=True)
@@ -553,6 +761,10 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f'  Stamping ContentIdentifier {asset_id} …', end=' ', flush=True)
     stamp_live_photo(still_heic, motion_path, asset_id)
+    print('ok')
+
+    print('  Stamping device metadata …', end=' ', flush=True)
+    stamp_device_metadata(motion_path)
     print('ok')
 
     write_manifest(out_dir, asset_id, duration, width, height)

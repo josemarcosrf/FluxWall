@@ -144,16 +144,33 @@ pair that share the same `ContentIdentifier` UUID.
   [`makelive`](https://github.com/RhetTbull/makelive) (macOS CoreGraphics).
 - The **video** stores it in QuickTime movie metadata — also stamped by
   `makelive` (AVFoundation), preserving the track structure.
-- The **video** also carries a `com.apple.quicktime.still-image-time` timed
-  metadata track (`mebx`): a single sample at the still frame's position, with a
-  leading empty edit so iOS knows where the cover sits. Without it the pair
-  shows in Photos but the lock screen reports **"Motion Not Available"**.
+- The **video** also carries two `mebx` timed-metadata tracks, copied from a real
+  iPhone Live Photo (`scripts/_mebx_template.json`, extracted from
+  `vendor-livp/IMG_7673.MOV`):
+  - `com.apple.quicktime.live-photo-info`: one 144-byte sample per video frame,
+    minus a fixed 3-frame (~0.05s) lead-in gap — real Live Photos (and other
+    working converters) never cover the very start of the video with this
+    track, only the last ~95% of it.
+  - `com.apple.quicktime.still-image-time`: a single 89-byte sample at the still
+    frame's position (via a leading empty edit), marking the cover moment.
+    Defaults to the clip's midpoint, matching every working reference file
+    inspected.
+  Getting the pairing right (`ContentIdentifier` + both tracks present) is
+  enough for Photos itself to show the "LIVE" badge and animate on
+  long-press — but the Lock Screen wallpaper picker applies its own,
+  stricter check on top and will still report **"Motion Not Available"**
+  even when Photos plays the Live Photo fine. Matching the exact resolution,
+  frame rate, and duration of a real, confirmed-working Live Photo mattered
+  here — see `--fps`/`--duration` defaults below.
 
 `ffmpeg` handles only the video transcode — it cannot write `mebx` tracks (it
-drops them even on `-c copy`), so the still-image-time track is added with
-AVFoundation (`AVAssetWriter`, sample passthrough, no re-encode). pillow-heif
-handles only the HEIC still. Hence the `makelive` dependency, which also
-provides the AVFoundation/CoreMedia frameworks.
+drops them even on `-c copy`), so `inject_mebx_tracks()` re-muxes the finished
+MOV byte-for-byte (no re-encode): the video `mdat` and track are copied
+verbatim and the two metadata tracks are rebuilt with fresh sample tables
+(`stts`/`stsc`/`stsz`/`stco`) sized for the output frame count/rate, reusing
+the template's static boxes (`stsd`, `hdlr`, `gmhd`, `dref`) and sample bytes
+unchanged. pillow-heif handles only the HEIC still; `makelive` stamps the
+shared `ContentIdentifier` into both files and packages the `.pvt`.
 
 ## Install
 
@@ -164,7 +181,7 @@ uv sync --extra livephoto   # macOS only (CoreGraphics/AVFoundation)
 ## Usage
 
 ```bash
-uv run scripts/mp4_to_live_photo.py output/flowing_curve_....mp4 --model pro
+uv run scripts/mp4_to_live_photo.py output/flowing_curve_....mp4
 ```
 
 ### Time mapping (speed / slow-motion)
@@ -178,38 +195,41 @@ pick *which* part to feature and at what tempo:
 | Flag | Default | Meaning |
 |------|---------|---------|
 | `--start-sec` | `0` | Where in the source to start the clip |
-| `--duration` | `3` | Live Photo length (iOS Live Photos are ~3s) |
+| `--duration` | `3` | Live Photo length. **Only 1s is confirmed to work as a Lock Screen wallpaper** — 2s and 3s produced valid, playable Live Photos in Photos but the Lock Screen picker still reported "Motion Not Available". Cause not yet root-caused (possibly a real duration cap, possibly the fixed lead-gap needing to scale with duration instead — see `inject_mebx_tracks()`). |
 | `--speed` | `1` | Tempo vs source: `1` = same, `0.5` = 2× slow-mo, `2` = 2× fast |
-| `--fps` | `30` | Output frame rate (try `60` for smoother motion) |
+| `--fps` | `60` | Output frame rate, matches the confirmed-working reference |
 | `--interpolate` | off | Blend frames when resampling instead of dropping — smoother when downsampling a high-fps source |
 
 The clip is the source window `[--start-sec, --start-sec + --duration × --speed]`,
 re-mapped onto `--duration` seconds. So slow-mo of a busy region is:
 `--start-sec 1.0 --speed 0.5 --duration 3` (1.5s of source stretched to 3s).
 
-### Resolution presets (`--model`)
+### Resolution (`--width`/`--height`/`--model`)
+
+Defaults to **1080 × 1920** — not any real iPhone screen resolution, but the
+exact size of a real Live Photo pair (`vendor-livp/IMG_7725.MOV`/`.HEIC`)
+confirmed to work as a Lock Screen wallpaper. Override with `--width W
+--height H` (both required; rounded down to even), or pick a device preset:
 
 | Model | Resolution |
 |-------|------------|
 | `pro-max` | 1290 × 2796 |
-| `pro` (default) | 1179 × 2556 |
+| `pro` | 1179 × 2556 |
 | `pro-old` | 1170 × 2532 |
 | `se` | 750 × 1334 |
-
-Use `--width W --height H` to override (both required; rounded down to even).
 
 ### Examples
 
 ```bash
-# Default: first 3s of the source, original speed, iPhone 15/16 Pro size
+# Default: first 3s of the source at 1080x1920/60fps (2s/3s not confirmed working — see above)
 uv run scripts/mp4_to_live_photo.py output/flowing_curve_....mp4
 
-# 2× slow-motion of source [1s, 2.5s], motion-interpolated at 60fps
-uv run scripts/mp4_to_live_photo.py output/flowing_curve_....mp4 \
-  --start-sec 1.0 --speed 0.5 --fps 60 --interpolate
+# Confirmed-working config: 1s clip, source window centered on t=1s
+uv run scripts/mp4_to_live_photo.py output/flowing_curve_....mp4 --duration 1 --start-sec 0.5
 
-# Full 5s compressed into a 3s Live Photo (1.67× speed)
-uv run scripts/mp4_to_live_photo.py output/flowing_curve_....mp4 --duration 3 --speed 1.67
+# 2× slow-motion of source [1s, 2.5s], motion-interpolated
+uv run scripts/mp4_to_live_photo.py output/flowing_curve_....mp4 \
+  --start-sec 1.0 --speed 0.5 --interpolate
 
 # Hardware encoder (macOS VideoToolbox) for faster encodes
 uv run scripts/mp4_to_live_photo.py output/flowing_curve_....mp4 --codec hevc_videotoolbox
