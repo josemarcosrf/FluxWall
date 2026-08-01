@@ -36,6 +36,7 @@ Thumbs.db
 *.mp4
 *.mov
 *.heic
+vendor-livp/
 output/
 exports/
 tmp/
