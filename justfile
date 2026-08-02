@@ -36,7 +36,7 @@ webapp-install:
 	cd webapp && npm install
 
 webapp-dev:
-	cd webapp && npm run dev
+	cd webapp && VITE_API_BASE=http://localhost:8000 npm run dev
 
 webapp-build:
 	cd webapp && npm run build

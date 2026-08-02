@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from collections.abc import AsyncGenerator, Awaitable, Callable, Iterator
 from pathlib import Path
 from typing import Any
@@ -38,6 +39,8 @@ from fluxwall.generators import registry
 from fluxwall.generators.base import Generator, GeneratorParams
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 
 # ─── Health ───────────────────────────────────────────────────────
@@ -271,6 +274,14 @@ def _run_export_task(
     else:
         export_video(frames, output_path, fps=params.fps, width=params.width, height=params.height)
     job.output_path = str(output_path)
+    logger.info(
+        'Export completed: job_id=%s output=%s (%sx%s, %s frames)',
+        job.id,
+        output_path,
+        params.width,
+        params.height,
+        params.total_frames,
+    )
 
 
 def _make_export_task(
@@ -288,8 +299,19 @@ def _make_export_task(
 
 async def _do_export(request: ExportRequest) -> ExportStartResponse:
     """Start an export job (video or Live Photo) in the async job queue."""
+    logger.info(
+        'POST /export requested: generator=%s format=%s fps=%s duration=%s device=%s',
+        request.generator,
+        request.options.format.value,
+        request.options.fps,
+        request.options.duration_sec,
+        request.options.iphone_model.value,
+    )
+    logger.debug('POST /export params=%s', request.params)
+
     generator = registry.get(request.generator)
     if not generator:
+        logger.warning('POST /export rejected: generator %r not found', request.generator)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Generator '{request.generator}' not found",
@@ -297,7 +319,9 @@ async def _do_export(request: ExportRequest) -> ExportStartResponse:
 
     try:
         params = generator.validate_params(request.params)
+        logger.debug('Generator %s valid: params=%s', request.generator, request.params)
     except Exception as e:
+        logger.warning('POST /export rejected: generator=%s params validation failed: %s', request.generator, e)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f'Invalid parameters: {e}',
@@ -314,6 +338,12 @@ async def _do_export(request: ExportRequest) -> ExportStartResponse:
         params=request.params,
         options=request.options,
         task=_make_export_task(generator, params, request.options),
+    )
+    logger.info(
+        'POST /export accepted: job_id=%s generator=%s format=%s',
+        job_id,
+        request.generator,
+        request.options.format.value,
     )
 
     ext = request.options.format.value
@@ -332,6 +362,7 @@ async def export_status(job_id: UUID) -> JobStatusResponse:
     """Get export job status from the job queue."""
     job = job_queue.get_status(str(job_id))
     if not job:
+        logger.warning('GET /export/status: job %s not found', job_id)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail='Export job not found',
@@ -378,6 +409,11 @@ async def export_download(job_id: UUID, ext: str) -> FileResponse:
                 media_type='application/octet-stream',
                 filename=candidate.name,
             )
+
+    if job is None:
+        logger.warning('GET /export/download: job %s not found', job_id)
+    else:
+        logger.warning('GET /export/download: job %s has no ready output (path=%s)', job_id, job.output_path)
 
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,

@@ -1,15 +1,22 @@
 import asyncio
-import subprocess
+import os
 import signal
+import subprocess
 import sys
+from pathlib import Path
 
 API_PORT = 8000
-UI_PORT = 8501
+WEBAPP_DIR = Path(__file__).resolve().parents[1] / "webapp"
 
 
-async def run_server(cmd: list[str], name: str):
+async def run_server(cmd: list[str], name: str, *, cwd: str | None = None, env: dict[str, str] | None = None):
+    full_env = dict(os.environ)
+    if env:
+        full_env.update(env)
     proc = await asyncio.create_subprocess_exec(
         *cmd,
+        cwd=cwd,
+        env=full_env,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )
@@ -28,13 +35,14 @@ async def main():
         ["uv", "run", "uvicorn", "fluxwall.main:app", "--host", "0.0.0.0", "--port", str(API_PORT), "--reload"],
         "API",
     )
-    ui = run_server(
-        ["uv", "run", "streamlit", "run", "src/fluxwall/streamlit_app.py",
-         "--server.port", str(UI_PORT), "--server.headless", "true"],
-        "UI",
+    web = run_server(
+        ["npm", "run", "dev"],
+        "WEBAPP",
+        cwd=str(WEBAPP_DIR),
+        env={"VITE_API_BASE": f"http://localhost:{API_PORT}"},
     )
 
-    tasks = [asyncio.create_task(api), asyncio.create_task(ui)]
+    tasks = [asyncio.create_task(api), asyncio.create_task(web)]
 
     def shutdown():
         for t in tasks:

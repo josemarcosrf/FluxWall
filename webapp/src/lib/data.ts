@@ -127,7 +127,7 @@ export const GENERATORS: Generator[] = [
     glyph: 'curve',
     param_schema: {
       properties: [
-        { id: 'mode', label: 'Curve mode', type: 'enum', default: 'sin', options: ['sin', 'linear', 'log', 'sqrt', 'golden', 'poly', 'prescribed'] },
+        { id: 'mode', label: 'Curve mode', type: 'enum', default: 'sin', options: ['sin', 'linear', 'log', 'sqrt', 'golden', 'poly', 'uzumaki'] },
         { id: 'steps', label: 'Steps / frame', type: 'int', min: 100, max: 20000, default: 2000, unit: 'pts' },
         { id: 'step_size', label: 'Step magnitude', type: 'float', min: 0.001, max: 0.1, step: 0.001, default: 0.008 },
         { id: 'omega', label: 'Angular frequency', type: 'float', min: 0.01, max: 5, step: 0.01, default: 0.15 },
@@ -149,7 +149,7 @@ export const GENERATORS: Generator[] = [
       { name: 'log_whorls', description: 'Tight logarithmic whorls that bloom outward', params: { mode: 'log', omega: 2.0, step_size: 0.02 } },
       { name: 'comet_tails', description: 'Wide sweeping arcs, comet-like tails (sqrt)', params: { mode: 'sqrt', omega: 0.5, step_size: 0.02 } },
       { name: 'power_burst', description: 'Power-law spiral, star-shaped bursts (poly)', params: { mode: 'poly', omega: 0.5, exp: 2.2, step_size: 0.015 } },
-      { name: 'prescribed', description: 'The dense rapidly-evolving prescribed recurrence', params: { mode: 'prescribed' } },
+      { name: 'uzumaki', description: 'The dense rapidly-evolving uzumaki whirlpool', params: { mode: 'uzumaki' } },
     ],
   },
   {

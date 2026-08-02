@@ -1,12 +1,13 @@
 // Typed client for the FluxWall FastAPI backend.
 //
 // BASE defaults to '' (same-origin: the FastAPI app also serves the built SPA).
-// In dev, point VITE_API_BASE at the API, e.g. http://localhost:8000, and set
-// VITE_USE_API=1 to switch the export flow from the local mock to the server.
+// Use the real API by default; in standalone FE dev (no backend), set
+// VITE_API_BASE to point at the API (e.g. http://localhost:8000) or set
+// VITE_USE_API=0 to run the export flow against the local mocks.
 import type { Params } from './types';
 
 export const API_BASE: string = (import.meta.env.VITE_API_BASE as string | undefined) ?? '';
-export const USE_API: boolean = (import.meta.env.VITE_USE_API as string | undefined) === '1';
+export const USE_API: boolean = (import.meta.env.VITE_USE_API as string | undefined) !== '0';
 
 export interface ApiGeneratorInfo {
   name: string;

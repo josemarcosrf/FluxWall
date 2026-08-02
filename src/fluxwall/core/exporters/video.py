@@ -42,13 +42,18 @@ def export_video(
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # libx264 with yuv420p requires even dimensions. Round down so odd
+    # resolutions (e.g. iPhone 15 Pro 1179x2556) encode without a broken pipe.
+    even_w = width - (width % 2)
+    even_h = height - (height % 2)
+
     # Build ffmpeg command
     process = (
         ffmpeg.input(
             'pipe:',
             format='rawvideo',
             pix_fmt='rgb24',
-            s=f'{width}x{height}',
+            s=f'{even_w}x{even_h}',
             framerate=fps,
         )
         .output(
@@ -66,9 +71,9 @@ def export_video(
 
     try:
         for frame in frames:
-            # Resize if needed
-            if frame.shape[:2] != (height, width):
-                frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_LINEAR).astype(np.uint8)
+            # Resize if shape doesn't match the (even) encode size
+            if frame.shape[:2] != (even_h, even_w):
+                frame = cv2.resize(frame, (even_w, even_h), interpolation=cv2.INTER_LINEAR).astype(np.uint8)
             # Write raw RGB data to stdin
             process.stdin.write(frame.tobytes())
     finally:

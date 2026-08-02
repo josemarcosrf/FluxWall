@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,6 +13,7 @@ class Settings(BaseSettings):
         env_file='.env',
         env_file_encoding='utf-8',
         case_sensitive=False,
+        populate_by_name=True,
         extra='ignore',
     )
 
@@ -19,7 +21,11 @@ class Settings(BaseSettings):
     app_name: str = 'FluxWall'
     app_version: str = '0.1.0'
     debug: bool = False
-    log_level: str = 'INFO'
+    # Accept LOG_LEVEL, LOGGER_LEVEL or FLUXWALL_LOG_LEVEL as the env var.
+    log_level: str = Field(
+        default='INFO',
+        validation_alias=AliasChoices('LOG_LEVEL', 'LOGGER_LEVEL', 'FLUXWALL_LOG_LEVEL'),
+    )
 
     # Server
     host: str = '0.0.0.0'

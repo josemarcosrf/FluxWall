@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import uuid
 from collections import deque
 from collections.abc import Awaitable, Callable
@@ -13,6 +14,8 @@ from enum import StrEnum
 from typing import Any, cast
 
 from fluxwall.core.models import ExportJob, ExportOptions, GeneratorType
+
+logger = logging.getLogger(__name__)
 
 
 class JobStatus(StrEnum):
@@ -109,6 +112,7 @@ class JobQueue:
         )
         job.status = JobStatus.QUEUED
         self._queue.append(job)
+        logger.debug('Job enqueued: id=%s generator=%s', job.id, generator)
         return job.id
 
     def get_status(self, job_id: str) -> Job | None:
@@ -167,12 +171,14 @@ class JobQueue:
             except Exception as e:
                 job.status = JobStatus.FAILED
                 job.error = str(e)
+                logger.exception('Job %s failed: %s', job.id, e)
             finally:
                 job.completed_at = datetime.now()
                 job.progress = 1.0
                 self._running.pop(job.id, None)
                 self._completed[job.id] = job
                 self._running_count -= 1
+                logger.info('Job %s finished: status=%s output=%s', job.id, job.status.value, job.output_path)
 
                 if job.callback:
                     with contextlib.suppress(Exception):

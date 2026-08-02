@@ -125,7 +125,7 @@ export function ExportPanel({ gen, preset, params, output, onFormatChange }: Exp
       <button
         className="btn btn-primary btn-block"
         data-od-id="btn-export"
-        disabled={gen.unimplemented || !!running}
+        disabled={gen.unimplemented || (!!running && !done)}
         onClick={startExport}
         style={{ marginTop: '14px' }}
       >

@@ -304,7 +304,7 @@ function curveXY(
   let ry = 0;
   for (let n = 1; n <= steps; n++) {
     let phi: number;
-    if (mode === 'prescribed') {
+    if (mode === 'uzumaki') {
       const a = Math.pow(2000 - n, 1.5) / (3000 - n);
       const inner = 10 * Math.cos(100 * tt) * Math.sin(0.05 * n + 30 * tt) + 10 * tt;
       phi = 2 * Math.PI * tt * inner - 1.8 * n * tt + Math.PI / 2;

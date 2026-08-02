@@ -1,6 +1,6 @@
 # FluxWall
 
-<img src="assets/prescribed_samples.png" alt="FluxWall prescribed samples" width="600" />
+<img src="assets/prescribed_samples.png" alt="FluxWall uzumaki samples" width="600" />
 
 **Parametric iOS Live Wallpaper Generator** — FluxWall turns code-driven, generative art into iOS live wallpapers. It pairs a FastAPI backend with a Streamlit UI to generate, preview, and export Live Photos (HEIC + MOV) from a plugin system of procedural generators.
 
