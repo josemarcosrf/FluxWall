@@ -178,10 +178,12 @@ class LivePhotoExporter:
 
         bundle_dir = Path(bundle_dir)
         output_zip = bundle_dir.with_suffix('.livephoto.zip') if output_zip is None else Path(output_zip)
+        output_zip = output_zip.resolve()
 
         with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
             for file_path in bundle_dir.iterdir():
-                if file_path.is_file():
+                # Exclude the zip we're writing in case it lives inside bundle_dir
+                if file_path.is_file() and file_path.resolve() != output_zip:
                     zf.write(file_path, file_path.name)
 
         return output_zip

@@ -36,6 +36,7 @@ Thumbs.db
 *.mp4
 *.mov
 *.heic
+vendor-livp/
 output/
 exports/
 tmp/
@@ -55,3 +56,9 @@ htmlcov/
 
 # Railway
 .railway/
+
+# Node / webapp (React)
+node_modules/
+webapp/dist/
+webapp/node_modules/
+*.tsbuildinfo

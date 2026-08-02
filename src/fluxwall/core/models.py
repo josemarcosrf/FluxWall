@@ -194,6 +194,9 @@ class FlowingCurveParams(GeneratorParams):
     supersample: int = 1
     blur_decay: float = 0.55
     auto_limits: bool = True
+    # Adaptive frame timing (accepted for parity with the webapp/demo UI).
+    adaptive: bool = False
+    adaptive_strength: float = 0.3
 
 
 class Preset(BaseModel):

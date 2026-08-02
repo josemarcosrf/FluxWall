@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncGenerator
+import logging
+from collections.abc import AsyncGenerator, Awaitable, Callable, Iterator
 from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import FileResponse, StreamingResponse
 
 from fluxwall.api.schemas import (
@@ -25,6 +26,7 @@ from fluxwall.api.schemas import (
 from fluxwall.core import (
     ExportFormat,
     ExportOptions,
+    FrameArray,
     GeneratorType,
     LivePhotoExporter,
     export_mov,
@@ -32,10 +34,13 @@ from fluxwall.core import (
     preset_registry,
     settings,
 )
+from fluxwall.core.job_queue import Job, job_queue
 from fluxwall.generators import registry
 from fluxwall.generators.base import Generator, GeneratorParams
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 
 # ─── Health ───────────────────────────────────────────────────────
@@ -212,20 +217,101 @@ async def preview_stream(
 
 
 @router.post('/export', response_model=ExportStartResponse)
-async def start_export(
-    request: ExportRequest,
-    background_tasks: BackgroundTasks,
-) -> ExportStartResponse:
-    return await _do_export(request, background_tasks)
+async def start_export(request: ExportRequest) -> ExportStartResponse:
+    return await _do_export(request)
 
 
-async def _do_export(
-    request: ExportRequest,
-    background_tasks: BackgroundTasks,
-) -> ExportStartResponse:
-    """Start an export job (video or Live Photo)."""
+def _progress_frames(
+    frames: Iterator[FrameArray],
+    job: Job,
+    total_frames: int,
+) -> Iterator[FrameArray]:
+    """Wrap a frame iterator so progress/current_frame track the export."""
+
+    def _emit(idx: int, frame: FrameArray) -> FrameArray:
+        job.current_frame = idx + 1
+        job.progress = min(1.0, (idx + 1) / max(1, total_frames))
+        return frame
+
+    for idx, frame in enumerate(frames):
+        yield _emit(idx, frame)
+
+
+def _run_export_task(
+    generator: Generator,
+    params: GeneratorParams,
+    options: ExportOptions,
+    job: Job,
+) -> None:
+    """Synchronous export runner — executed in a worker thread."""
+    output_dir = settings.exports_dir / job.id
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    job.total_frames = params.total_frames
+    frames = _progress_frames(generator.generate_frames(params), job, params.total_frames)
+
+    if options.format == ExportFormat.LIVE_PHOTO:
+        exporter = LivePhotoExporter(
+            output_dir,
+            base_name=f'livephoto_{job.id[:8]}',
+            duration=options.duration_sec,
+            fps=options.fps,
+            width=params.width,
+            height=params.height,
+            quality=options.quality,
+        )
+        exporter.export_from_generator(frames, params.total_frames)
+        zip_path = exporter.create_ios_import_package(
+            output_dir,
+            output_dir / f'livephoto_{job.id[:8]}.zip',
+        )
+        job.output_path = str(zip_path)
+        return
+
+    output_path = output_dir / f'output.{options.format.value}'
+    if options.format == ExportFormat.MOV:
+        export_mov(frames, output_path, fps=params.fps, width=params.width, height=params.height)
+    else:
+        export_video(frames, output_path, fps=params.fps, width=params.width, height=params.height)
+    job.output_path = str(output_path)
+    logger.info(
+        'Export completed: job_id=%s output=%s (%sx%s, %s frames)',
+        job.id,
+        output_path,
+        params.width,
+        params.height,
+        params.total_frames,
+    )
+
+
+def _make_export_task(
+    generator: Generator,
+    params: GeneratorParams,
+    options: ExportOptions,
+) -> Callable[[Job], Awaitable[None]]:
+    """Build the async task the job queue runs for this export."""
+
+    async def run(job: Job) -> None:
+        await asyncio.to_thread(_run_export_task, generator, params, options, job)
+
+    return run
+
+
+async def _do_export(request: ExportRequest) -> ExportStartResponse:
+    """Start an export job (video or Live Photo) in the async job queue."""
+    logger.info(
+        'POST /export requested: generator=%s format=%s fps=%s duration=%s device=%s',
+        request.generator,
+        request.options.format.value,
+        request.options.fps,
+        request.options.duration_sec,
+        request.options.iphone_model.value,
+    )
+    logger.debug('POST /export params=%s', request.params)
+
     generator = registry.get(request.generator)
     if not generator:
+        logger.warning('POST /export rejected: generator %r not found', request.generator)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Generator '{request.generator}' not found",
@@ -233,7 +319,9 @@ async def _do_export(
 
     try:
         params = generator.validate_params(request.params)
+        logger.debug('Generator %s valid: params=%s', request.generator, request.params)
     except Exception as e:
+        logger.warning('POST /export rejected: generator=%s params validation failed: %s', request.generator, e)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f'Invalid parameters: {e}',
@@ -243,121 +331,93 @@ async def _do_export(
     params.fps = request.options.fps
     params.duration_sec = request.options.duration_sec
     iphone_res = getattr(request.options.iphone_model, 'resolution', (1290, 2796))
-    res = iphone_res
-    params.width = res[0]
-    params.height = res[1]
+    params.width, params.height = iphone_res
 
-    # For now, run synchronously (will add job queue later)
-    import uuid
+    job_id = job_queue.enqueue(
+        generator=request.generator,
+        params=request.params,
+        options=request.options,
+        task=_make_export_task(generator, params, request.options),
+    )
+    logger.info(
+        'POST /export accepted: job_id=%s generator=%s format=%s',
+        job_id,
+        request.generator,
+        request.options.format.value,
+    )
 
-    job_id = uuid.uuid4()
-
-    # Create output directory
-    output_dir = settings.exports_dir / str(job_id)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
+    ext = request.options.format.value
     if request.options.format == ExportFormat.LIVE_PHOTO:
-        # Schedule Live Photo export in background
-        background_tasks.add_task(
-            _export_live_photo_background,
-            job_id,
-            generator,
-            params,
-            request.options,
-            output_dir,
-        )
-        download_url = f'/api/export/download/{job_id}.zip'
-    else:
-        # Schedule video export in background
-        background_tasks.add_task(
-            _export_video_background,
-            job_id,
-            generator,
-            params,
-            request.options,
-            output_dir,
-        )
-        ext = request.options.format.value
-        download_url = f'/api/export/download/{job_id}.{ext}'
+        ext = 'zip'
 
     return ExportStartResponse(
-        job_id=job_id,
+        job_id=UUID(job_id),
         status_url=f'/api/export/status/{job_id}',
-        download_url=download_url,
+        download_url=f'/api/export/download/{job_id}.{ext}',
     )
-
-
-async def _export_video_background(
-    job_id: UUID,
-    generator: Generator,
-    params: GeneratorParams,
-    options: ExportOptions,
-    output_dir: Path,
-) -> None:
-    """Background task for video export."""
-    output_path = output_dir / f'output.{options.format.value}'
-
-    if options.format == ExportFormat.MOV:
-        export_mov(generator.generate_frames(params), output_path, params.fps)
-    else:
-        export_video(generator.generate_frames(params), output_path, params.fps)
-
-
-async def _export_live_photo_background(
-    job_id: UUID,
-    generator: Generator,
-    params: GeneratorParams,
-    options: ExportOptions,
-    output_dir: Path,
-) -> None:
-    """Background task for Live Photo export."""
-    exporter = LivePhotoExporter(
-        output_dir,
-        base_name=f'livephoto_{job_id.hex[:8]}',
-        duration=options.duration_sec,
-        fps=options.fps,
-        width=params.width,
-        height=params.height,
-        quality=options.quality,
-    )
-    exporter.export_from_generator(generator.generate_frames(params), params.total_frames)
 
 
 @router.get('/export/status/{job_id}', response_model=JobStatusResponse)
 async def export_status(job_id: UUID) -> JobStatusResponse:
-    """Get export job status."""
-    # TODO: Implement job queue status tracking
+    """Get export job status from the job queue."""
+    job = job_queue.get_status(str(job_id))
+    if not job:
+        logger.warning('GET /export/status: job %s not found', job_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Export job not found',
+        )
+
+    download_url = None
+    if job.output_path:
+        suffix = Path(job.output_path).suffix.lstrip('.')
+        if suffix:
+            download_url = f'/api/export/download/{job_id}.{suffix}'
+
     return JobStatusResponse(
         id=job_id,
-        status='completed',
-        progress=1.0,
-        current_frame=0,
-        total_frames=0,
-        download_url=f'/api/export/download/{job_id}.mp4',
+        status=job.status.value,
+        progress=job.progress,
+        current_frame=job.current_frame,
+        total_frames=job.total_frames,
+        output_path=job.output_path,
+        error=job.error,
+        download_url=download_url,
     )
 
 
 @router.get('/export/download/{job_id}.{ext}')
 async def export_download(job_id: UUID, ext: str) -> FileResponse:
-    """Download exported file."""
-    output_dir = settings.exports_dir / str(job_id)
-    file_path = output_dir / f'output.{ext}'
-
-    if not file_path.exists():
-        # Try Live Photo zip
-        zip_path = output_dir / f'livephoto_{job_id.hex[:8]}.zip'
-        if zip_path.exists():
-            file_path = zip_path
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail='Export not found or not ready',
+    """Download an exported file once the job has produced it."""
+    job = job_queue.get_status(str(job_id))
+    if job and job.output_path:
+        candidate = Path(job.output_path)
+        if candidate.exists():
+            return FileResponse(
+                candidate,
+                media_type='application/octet-stream',
+                filename=candidate.name,
             )
 
-    return FileResponse(
-        file_path,
-        media_type='application/octet-stream',
-        filename=file_path.name,
+    # Fallback: resolve by naming convention (jobs started before output_path existed)
+    output_dir = settings.exports_dir / str(job_id)
+    for name in (f'output.{ext}', f'livephoto_{job_id.hex[:8]}.zip'):
+        candidate = output_dir / name
+        if candidate.exists():
+            return FileResponse(
+                candidate,
+                media_type='application/octet-stream',
+                filename=candidate.name,
+            )
+
+    if job is None:
+        logger.warning('GET /export/download: job %s not found', job_id)
+    else:
+        logger.warning('GET /export/download: job %s has no ready output (path=%s)', job_id, job.output_path)
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail='Export not found or not ready',
     )
 
 
@@ -385,6 +445,5 @@ async def export_from_preset(
             generator=preset.generator,
             params=preset.params,
             options=options,
-        ),
-        BackgroundTasks(),
+        )
     )

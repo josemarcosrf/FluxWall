@@ -18,7 +18,7 @@ def _gol_step(
     h, w = grid.shape
     new_grid = np.zeros_like(grid)
 
-    for y in prange(h):
+    for y in prange(h):  # type: ignore[attr-defined]
         for x in range(w):
             # Count neighbors
             count = 0
@@ -51,7 +51,7 @@ def _mandelbrot_kernel(
     h, w = len(im), len(re)
     result = np.zeros((h, w), dtype=np.float64)
 
-    for i in prange(h):
+    for i in prange(h):  # type: ignore[attr-defined]
         cy = im[i]
         for j in range(w):
             cx = re[j]
@@ -94,7 +94,7 @@ def _julia_kernel(
     h, w = len(im), len(re)
     result = np.zeros((h, w), dtype=np.float64)
 
-    for i in prange(h):
+    for i in prange(h):  # type: ignore[attr-defined]
         cy = im[i]
         for j in range(w):
             cx = re[j]
@@ -156,7 +156,7 @@ def _fbm_2d(
     max_value = 0.0
 
     for _ in range(octaves):
-        for i in prange(h):
+        for i in prange(h):  # type: ignore[attr-defined]
             for j in range(w):
                 nx = x_coords[j] * frequency
                 ny = y_coords[i] * frequency

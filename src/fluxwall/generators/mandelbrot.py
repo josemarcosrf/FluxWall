@@ -25,7 +25,7 @@ def _mandelbrot_kernel(
     h, w = len(im), len(re)
     result = np.zeros((h, w), dtype=np.float64)
 
-    for i in prange(h):
+    for i in prange(h):  # type: ignore[attr-defined]
         cy = im[i]
         for j in range(w):
             cx = re[j]

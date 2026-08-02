@@ -7,7 +7,7 @@ NumPy (vectorized), Matplotlib (`LineCollection`), and FFmpeg.
 
 ```bash
 # Run from project root with uv
-uv run scripts/flowing_curve_demo.py --mode prescribed
+uv run scripts/flowing_curve_demo.py --mode uzumaki
 
 # Or with pip-installed deps
 python scripts/flowing_curve_demo.py --mode sin --seconds 8 --cmap plasma
@@ -15,7 +15,7 @@ python scripts/flowing_curve_demo.py --mode sin --seconds 8 --cmap plasma
 
 ## Modes
 
-### `prescribed` (default-ish)
+### `uzumaki` (default-ish)
 
 Your specific recurrence:
 
@@ -73,10 +73,10 @@ Power-law spiral; varies from asteroid-belt rings to star-shaped bursts.
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--mode` | `sin` | One of `prescribed`, `linear`, `log`, `sqrt`, `sin`, `golden`, `poly` |
-| `--steps` | `2000` | Iterations per frame (ignored in `prescribed`) |
-| `--step-size` | `0.008` | Base step magnitude (ignored in `prescribed`) |
-| `--omega` | `0.15` | Angular frequency (ignored in `prescribed`) |
+| `--mode` | `sin` | One of `uzumaki`, `linear`, `log`, `sqrt`, `sin`, `golden`, `poly` |
+| `--steps` | `2000` | Iterations per frame (ignored in `uzumaki`) |
+| `--step-size` | `0.008` | Base step magnitude (ignored in `uzumaki`) |
+| `--omega` | `0.15` | Angular frequency (ignored in `uzumaki`) |
 | `--exp` | `0.5` | Power exponent for `poly` mode |
 | `--seconds` | `5.0` | Animation duration |
 | `--fps` | `30` | Frames per second |
@@ -97,14 +97,14 @@ Power-law spiral; varies from asteroid-belt rings to star-shaped bursts.
 ## Examples
 
 ```bash
-# Prescribed formula with adaptive timing (smoother transitions)
-uv run scripts/flowing_curve_demo.py --mode prescribed --adaptive --seconds 8
+# Uzumaki formula with adaptive timing (smoother transitions)
+uv run scripts/flowing_curve_demo.py --mode uzumaki --adaptive --seconds 8
 
-# Prescribed formula at 2× speed (twice as many frames, half-speed playback)
-uv run scripts/flowing_curve_demo.py --mode prescribed --speed 2.0
+# Uzumaki formula at 2× speed (twice as many frames, half-speed playback)
+uv run scripts/flowing_curve_demo.py --mode uzumaki --speed 2.0
 
 # Zoom into the most active range [0.6, 0.8] with 5× temporal resolution
-uv run scripts/flowing_curve_demo.py --mode prescribed --t-start 0.6 --t-end 0.8 --adaptive
+uv run scripts/flowing_curve_demo.py --mode uzumaki --t-start 0.6 --t-end 0.8 --adaptive
 
 # Psychedelic sin mode at higher res
 uv run scripts/flowing_curve_demo.py --mode sin --steps 3000 --seconds 8 --cmap plasma --line-width 0.4

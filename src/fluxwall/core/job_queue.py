@@ -4,15 +4,18 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import uuid
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 from typing import Any, cast
 
 from fluxwall.core.models import ExportJob, ExportOptions, GeneratorType
+
+logger = logging.getLogger(__name__)
 
 
 class JobStatus(StrEnum):
@@ -42,6 +45,9 @@ class Job:
     started_at: datetime | None = None
     completed_at: datetime | None = None
     callback: Callable | None = None
+    # Optional async worker that performs the real export. When set, it owns
+    # progress/status mutation and `_execute_job` just awaits it.
+    task: Callable[[Job], Awaitable[None]] | None = None
 
     def to_export_job(self) -> ExportJob:
         return ExportJob(
@@ -94,6 +100,7 @@ class JobQueue:
         params: dict[str, Any],
         options: ExportOptions,
         callback: Callable | None = None,
+        task: Callable[[Job], Awaitable[None]] | None = None,
     ) -> str:
         """Add job to queue."""
         job = Job(
@@ -101,9 +108,11 @@ class JobQueue:
             params=params,
             options=options,
             callback=callback,
+            task=task,
         )
         job.status = JobStatus.QUEUED
         self._queue.append(job)
+        logger.debug('Job enqueued: id=%s generator=%s', job.id, generator)
         return job.id
 
     def get_status(self, job_id: str) -> Job | None:
@@ -162,20 +171,31 @@ class JobQueue:
             except Exception as e:
                 job.status = JobStatus.FAILED
                 job.error = str(e)
+                logger.exception('Job %s failed: %s', job.id, e)
             finally:
                 job.completed_at = datetime.now()
                 job.progress = 1.0
                 self._running.pop(job.id, None)
                 self._completed[job.id] = job
                 self._running_count -= 1
+                logger.info('Job %s finished: status=%s output=%s', job.id, job.status.value, job.output_path)
 
                 if job.callback:
                     with contextlib.suppress(Exception):
                         await job.callback(job.to_export_job())
 
     async def _execute_job(self, job: Job) -> None:
-        """Execute the actual export job. Override in subclass."""
-        # This is a placeholder - actual implementation uses generators/exporters
+        """Execute the actual export job.
+
+        Delegates to ``job.task`` when provided (set by callers that know how
+        to run a real export); otherwise falls back to a simulated loop so the
+        queue remains useful on its own.
+        """
+        if job.task is not None:
+            await job.task(job)
+            return
+
+        # Placeholder simulation - actual implementation uses generators/exporters
         total = job.options.fps * int(job.options.duration_sec)
         job.total_frames = total
 
@@ -194,9 +214,13 @@ job_queue = JobQueue()
 
 
 async def init_job_queue(max_concurrent: int = 4) -> JobQueue:
-    """Initialize and start global job queue."""
+    """Initialize and start the global job queue.
+
+    Reuses the module-level singleton so code that imported ``job_queue`` by
+    value (e.g. routes) keeps enqueuing onto the started instance.
+    """
     global job_queue
-    job_queue = JobQueue(max_concurrent)
+    job_queue.max_concurrent = max_concurrent
     await job_queue.start()
     return job_queue
 

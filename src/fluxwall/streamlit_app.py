@@ -223,9 +223,10 @@ def main() -> None:
             st.stop()
 
         def label_for(g: dict[str, Any]) -> str:
+            display_name = str(g.get('display_name') or g.get('name') or '')
             if g['name'] in UNIMPLEMENTED_GENERATORS:
-                return f'🚧 {g["display_name"]} (not implemented)'
-            return g['display_name']
+                return f'🚧 {display_name} (not implemented)'
+            return display_name
 
         gen_names = [label_for(g) for g in generators]
         gen_map = {label_for(g): g['name'] for g in generators}
@@ -277,7 +278,7 @@ def main() -> None:
         )
 
         ipw, iph = IPHONE_MODELS[iphone_model]
-        st.markdown(f"**{ipw}×{iph}**  ")
+        st.markdown(f'**{ipw}×{iph}**  ')
         st.caption('Preview runs at low res for performance; export uses full resolution.')
         preview_scale = 0.25  # Preview at 25% of full resolution
 
@@ -374,11 +375,13 @@ def main() -> None:
     }
 
     # Create preview URL — pass params as JSON string
-    query = urlencode({
-        'generator': generator,
-        'params': json.dumps(preview_params),
-        'fps': 15,
-    })
+    query = urlencode(
+        {
+            'generator': generator,
+            'params': json.dumps(preview_params),
+            'fps': 15,
+        }
+    )
     preview_url = f'{PREVIEW_ENDPOINT}?{query}'
 
     # Preview — phone-sized display at low res

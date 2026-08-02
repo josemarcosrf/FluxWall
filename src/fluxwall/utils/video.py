@@ -45,7 +45,7 @@ def frames_to_video(
     if height is None:
         height = first_frame.shape[0]
 
-    fourcc = cv2.VideoWriter_fourcc(*codec)
+    fourcc = cv2.VideoWriter_fourcc(*codec)  # type: ignore[attr-defined]
     writer = cv2.VideoWriter(
         str(output_path),
         fourcc,
