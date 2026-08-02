@@ -1,5 +1,8 @@
 # Justfile - FluxWall Task Runner
 
+# Set the working directory for Python/uv commands.
+set working-directory := "backend"
+
 default: help
 
 # ─── Development ──────────────────────────────────────────────
@@ -13,7 +16,7 @@ ui:
 	uv run streamlit run src/fluxwall/streamlit_app.py --server.port 8501
 
 # ─── Code Quality ─────────────────────────────────────────────
-fmt:
+format:
 	uv run ruff format src tests
 
 lint:
@@ -22,7 +25,7 @@ lint:
 typecheck:
 	uv run mypy src
 
-check: fmt lint typecheck
+check: format lint typecheck
 
 # ─── Testing ──────────────────────────────────────────────────
 test:
@@ -31,21 +34,21 @@ test:
 test-cov:
 	uv run pytest tests --cov=fluxwall --cov-report=term-missing
 
-# ─── Webapp (React) ──────────────────────────────────────────
-webapp-install:
-	cd webapp && npm install
+# ─── Frontend (React) ─────────────────────────────────────────
+frontend-install:
+	cd ../frontend && npm install
 
-webapp-dev:
-	cd webapp && VITE_API_BASE=http://localhost:8000 npm run dev
+frontend-dev:
+	cd ../frontend && VITE_API_BASE=http://localhost:8000 npm run dev
 
-webapp-build:
-	cd webapp && npm run build
+frontend-build:
+	cd ../frontend && npm run build
 
-webapp-check:
-	cd webapp && npx tsc -b
+frontend-check:
+	cd ../frontend && npx tsc -b
 
-webapp-preview:
-	cd webapp && npm run preview
+frontend-preview:
+	cd ../frontend && npm run preview
 
 # ─── Export / Build ───────────────────────────────────────────
 export-presets:
@@ -56,10 +59,13 @@ export-preset name="gosper_gun":
 
 # ─── Docker / Deploy ──────────────────────────────────────────
 docker-build:
-	docker build -t fluxwall:latest .
+	docker compose build
 
-docker-run:
-	docker run -p 8000:8000 -p 8501:8501 fluxwall:latest
+docker-up:
+	docker compose up
+
+docker-run: docker-build
+	docker compose up -d
 
 deploy:
 	railway up --detach

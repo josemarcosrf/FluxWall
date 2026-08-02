@@ -9,37 +9,38 @@ Webapp: React 19, Vite 8, TypeScript, react-router-dom 7, oxlint
 ## Project Structure
 
 ```
-src/fluxwall/
-├── main.py                 # FastAPI entry + lifespan; mounts webapp/dist (SPA) at /
-├── streamlit_app.py        # Streamlit UI (530 lines)
-├── config.py               # Settings (pydantic-settings)
-├── core/
-│   ├── models.py           # Pydantic + dataclass schemas (GeneratorParams, ExportOptions, ExportJob, ...)
-│   ├── presets.py          # PresetRegistry
-│   ├── exporters/          # video.py, heic.py, live_photo.py
-│   └── job_queue.py        # Real async job queue (worker pool, progress/status tracking)
-├── generators/
-│   ├── base.py             # Generator ABC, GeneratorInfo, FrameBuffer
-│   ├── registry.py         # GeneratorRegistry, @register_generator, discover_generators()
-│   ├── game_of_life.py     # Numba JIT-accelerated GOL with trail rendering
-│   ├── mandelbrot.py       # Numba parallel Mandelbrot with zoom/color cycling
-│   ├── julia.py            # Julia set with spin/zoom/spin_zoom modes
-│   ├── flowing_curve.py    # Complex-plane recurrence curves (uzumaki, sin, golden, log, sqrt, poly)
-│   ├── l_system.py         # Scaffolded
-│   └── color_cycle.py      # Scaffolded
-├── api/
-│   ├── routes.py           # /health, /generators, /presets, /preview/start, /preview/stream, /export, /export/status|download
-│   ├── schemas.py          # Request/response models
-│   └── websocket.py        # Real-time frame streaming (active)
-├── preview/
-│   ├── mjpeg.py            # Real MJPEG builder (generate_mjpeg_stream)
-│   └── websocket.py        # Stub / placeholder
-└── utils/
-    ├── colors.py           # Matplotlib colormap application
-    ├── math.py             # Numba kernels (_gol_step, _mandelbrot_kernel, _julia_kernel)
-    └── video.py            # frames_to_video (cv2), frames_to_video_ffmpeg
+backend/
+└── src/fluxwall/
+    ├── main.py                 # FastAPI entry + lifespan; mounts frontend/dist (SPA) at /
+    ├── streamlit_app.py        # Streamlit UI (530 lines)
+    ├── config.py               # Settings (pydantic-settings)
+    ├── core/
+    │   ├── models.py           # Pydantic + dataclass schemas (GeneratorParams, ExportOptions, ExportJob, ...)
+    │   ├── presets.py          # PresetRegistry
+    │   ├── exporters/          # video.py, heic.py, live_photo.py
+    │   └── job_queue.py        # Real async job queue (worker pool, progress/status tracking)
+    ├── generators/
+    │   ├── base.py             # Generator ABC, GeneratorInfo, FrameBuffer
+    │   ├── registry.py         # GeneratorRegistry, @register_generator, discover_generators()
+    │   ├── game_of_life.py     # Numba JIT-accelerated GOL with trail rendering
+    │   ├── mandelbrot.py       # Numba parallel Mandelbrot with zoom/color cycling
+    │   ├── julia.py            # Julia set with spin/zoom/spin_zoom modes
+    │   ├── flowing_curve.py    # Complex-plane recurrence curves (uzumaki, sin, golden, log, sqrt, poly)
+    │   ├── l_system.py         # Scaffolded
+    │   └── color_cycle.py      # Scaffolded
+    ├── api/
+    │   ├── routes.py           # /health, /generators, /presets, /preview/start, /preview/stream, /export, /export/status|download
+    │   ├── schemas.py          # Request/response models
+    │   └── websocket.py        # Real-time frame streaming (active)
+    ├── preview/
+    │   ├── mjpeg.py            # Real MJPEG builder (generate_mjpeg_stream)
+    │   └── websocket.py        # Stub / placeholder
+    └── utils/
+        ├── colors.py           # Matplotlib colormap application
+        ├── math.py             # Numba kernels (_gol_step, _mandelbrot_kernel, _julia_kernel)
+        └── video.py            # frames_to_video (cv2), frames_to_video_ffmpeg
 
-webapp/                     # React 19 + Vite + TS SPA (served by FastAPI at /)
+frontend/                   # React 19 + Vite + TS SPA (served by FastAPI at /)
 ├── src/pages/              # Discover, Studio, Library
 ├── src/components/         # TopBar, PreviewCanvas, StillThumb, PhoneFrame, ParamField, OutputForm, ExportPanel, Rail, ui
 └── src/lib/                # data, render (JS ports of generator math), exports, store, glyphs, types, api
@@ -57,10 +58,10 @@ webapp/                     # React 19 + Vite + TS SPA (served by FastAPI at /)
 ## Running
 
 ```bash
-just dev                # API (8000) + React webapp dev server (Vite, HMR, -> http://localhost:5173)
+just dev                # API (8000) + React frontend dev server (Vite, HMR, -> http://localhost:5173)
 just api                # API only
 just ui                 # Streamlit UI only (legacy)
-just webapp-dev         # Vite dev server (webapp/) pointed at a local API on :8000
+just frontend-dev       # Vite dev server (frontend/) pointed at a local API on :8000
 just check              # ruff format + lint + mypy
 just test               # pytest
 ```
@@ -149,7 +150,7 @@ just test               # pytest
 
 - **Light/dark theme**: `lib/theme.ts` persists a `fw.theme` key and applies `data-theme` on `<html>`; `[data-theme='light']` overrides the oklch tokens in `app.css`. Toggle lives in the topbar (`.theme-toggle`).
 - **Sticky Studio layout**: `.studio` is now a fixed `height: calc(100dvh - topbar)` grid with each column (params / canvas / rail) scrolling independently, so long param sets stay in view. Responsive breakpoints reset to normal page scroll.
-- **FE talks to the real backend by default**: `USE_API` in `lib/api.ts` is now `!== '0'` (was `=== '1'`, defaulting to mocks). A normal `webapp-build` now drives real encoding same-origin. Set `VITE_USE_API=0` for standalone mock FE dev. `just webapp-dev` runs Vite with `VITE_API_BASE=http://localhost:8000` so Studio talks to a local `just api`.
+- **FE talks to the real backend by default**: `USE_API` in `lib/api.ts` is now `!== '0'` (was `=== '1'`, defaulting to mocks). A normal `frontend-build` now drives real encoding same-origin. Set `VITE_USE_API=0` for standalone mock FE dev. `just frontend-dev` runs Vite with `VITE_API_BASE=http://localhost:8000` so Studio talks to a local `just api`.
 - **Verified**: built SPA served by FastAPI runs a true encoded export (HEIC + MOV + zip for Live Photo); status poll + download endpoint return the real file (`CONTENT-DISPOSITION: attachment`).
 - **Generate button re-arm**: ExportPanel `disabled` now only during an in-flight job (`running && !done`), so re-exporting after a finished/failed job works without a reload.
 - **Switch control fix**: `.switch i` (the pill) is now `pointer-events:none`, so clicks on the visible toggle reach the hidden checkbox — the `Adaptive timing` switch can now be toggled off.

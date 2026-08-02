@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 API_PORT = 8000
-WEBAPP_DIR = Path(__file__).resolve().parents[1] / "webapp"
+FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
 
 
 async def run_server(cmd: list[str], name: str, *, cwd: str | None = None, env: dict[str, str] | None = None):
@@ -38,7 +38,7 @@ async def main():
     web = run_server(
         ["npm", "run", "dev"],
         "WEBAPP",
-        cwd=str(WEBAPP_DIR),
+        cwd=str(FRONTEND_DIR),
         env={"VITE_API_BASE": f"http://localhost:{API_PORT}"},
     )
 
