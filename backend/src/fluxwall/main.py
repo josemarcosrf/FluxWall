@@ -101,9 +101,9 @@ def create_app() -> FastAPI:
         name='exports',
     )
 
-    # Serve the built React webapp (SPA) at the root when present.
+    # Serve the built React frontend (SPA) at the root when present.
     # Registered last so /api, /health and /exports win over the catch-all.
-    webapp_dist = settings.base_dir / 'webapp' / 'dist'
+    webapp_dist = settings.base_dir.parent / 'frontend' / 'dist'
     if webapp_dist.exists():
         app.mount('/', SPAStaticFiles(directory=str(webapp_dist), html=True), name='webapp')
 

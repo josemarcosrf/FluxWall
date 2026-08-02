@@ -2,7 +2,7 @@
 name = "fluxwall"
 version = "0.1.0"
 description = "Parametric iOS Live Wallpaper Generator"
-readme = "README.md"
+readme = "../README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.110",

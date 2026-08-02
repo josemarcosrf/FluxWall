@@ -1,6 +1,6 @@
 # FluxWall
 
-<img src="assets/prescribed_samples.png" alt="FluxWall uzumaki samples" width="600" />
+<img src="backend/assets/prescribed_samples.png" alt="FluxWall uzumaki samples" width="600" />
 
 **Parametric iOS Live Wallpaper Generator** — FluxWall turns code-driven, generative art into iOS live wallpapers. It pairs a FastAPI backend with a Streamlit UI to generate, preview, and export Live Photos (HEIC + MOV) from a plugin system of procedural generators.
 
@@ -15,38 +15,54 @@
 
 ## Architecture
 
+FluxWall is a monorepo split into two deployable components:
+
 ```
-src/fluxwall/
-├── main.py                 # FastAPI app entry
-├── streamlit_app.py        # Streamlit UI entry
-├── config.py               # Settings (pydantic-settings)
-├── core/
-│   ├── models.py           # Pydantic schemas (params, presets, jobs)
-│   ├── presets.py          # Built-in preset registry
-│   ├── exporters/
-│   │   ├── video.py        # MP4/MOV via ffmpeg-python
-│   │   ├── heic.py         # HEIC still via pillow-heif
-│   │   └── live_photo.py   # Live Photo bundler (HEIC+MOV+manifest)
-│   └── job_queue.py        # Async job management
-├── generators/
-│   ├── base.py             # Abstract Generator base class
-│   ├── registry.py         # Generator plugin registry
-│   ├── game_of_life.py
-│   ├── mandelbrot.py
-│   ├── julia.py
-│   ├── l_system.py
-│   └── color_cycle.py
-├── api/
-│   ├── routes.py           # REST endpoints
-│   ├── websocket.py        # Real-time frame streaming (pending)
-│   └── schemas.py          # API request/response models
-├── preview/
-│   ├── mjpeg.py            # MJPEG over HTTP endpoint
-│   └── websocket.py        # Binary WebSocket frame streaming (pending)
-└── utils/
-    ├── colors.py           # Colormaps, palettes
-    ├── math.py             # Numba-accelerated kernels
-    └── video.py            # Frame utilities
+backend/                     # FastAPI + Streamlit (generators, presets, exporters)
+├── src/fluxwall/
+│   ├── main.py              # FastAPI app entry (also serves built frontend/ at /)
+│   ├── streamlit_app.py     # Streamlit UI entry
+│   ├── config.py            # Settings (pydantic-settings)
+│   ├── core/
+│   │   ├── models.py        # Pydantic schemas (params, presets, jobs)
+│   │   ├── presets.py       # Built-in preset registry
+│   │   ├── exporters/
+│   │   │   ├── video.py     # MP4/MOV via ffmpeg-python
+│   │   │   ├── heic.py      # HEIC still via pillow-heif
+│   │   │   └── live_photo.py# Live Photo bundler (HEIC+MOV+manifest)
+│   │   └── job_queue.py     # Async job management
+│   ├── generators/
+│   │   ├── base.py          # Abstract Generator base class
+│   │   ├── registry.py      # Generator plugin registry
+│   │   ├── game_of_life.py
+│   │   ├── mandelbrot.py
+│   │   ├── julia.py
+│   │   ├── l_system.py
+│   │   └── color_cycle.py
+│   ├── api/
+│   │   ├── routes.py        # REST endpoints
+│   │   ├── websocket.py     # Real-time frame streaming (pending)
+│   │   └── schemas.py       # API request/response models
+│   ├── preview/
+│   │   ├── mjpeg.py         # MJPEG over HTTP endpoint
+│   │   └── websocket.py     # Binary WebSocket frame streaming (pending)
+│   └── utils/
+│       ├── colors.py        # Colormaps, palettes
+│       ├── math.py          # Numba-accelerated kernels
+│       └── video.py         # Frame utilities
+├── presets/                 # Generator preset JSON
+├── assets/                  # Shared images/colormaps
+├── tests/                   # Mirror of src/ structure
+├── pyproject.toml           # Python project (uv)
+└── Dockerfile               # Backend image (compose)
+
+frontend/                    # React 19 + Vite + TS SPA
+├── src/                     # pages, components, lib
+├── package.json
+└── Dockerfile               # nginx image (compose)
+
+docker-compose.yml           # Runs backend + frontend
+Dockerfile                   # Railway: backend + baked frontend SPA
 ```
 
 ## Generator Interface
@@ -94,7 +110,7 @@ just deploy       # Railway deploy (from main branch only)
 
 ## Testing
 
-- Unit tests in `tests/` mirroring `src/` structure
+- Unit tests in `backend/tests/` mirroring `backend/src/` structure
 - `pytest -v` for verbose, `pytest --cov=fluxwall` for coverage
 - Generator tests verify frame output shape, dtype, and parameter validation
 

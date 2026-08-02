@@ -66,38 +66,50 @@ rtk pip list            rtk pnpm install        rtk npm run <script>
 - **Live Photo Export**: HEIC + MOV paired export with manifest (native HEIC first, fallback to paired files)
 
 ## Project Structure
+The repo is a monorepo split into `backend/` (FastAPI + Streamlit) and `frontend/` (React SPA).
 ```
-src/fluxwall/
-├── main.py                 # FastAPI app entry
-├── streamlit_app.py        # Streamlit UI entry
-├── config.py               # Settings (pydantic-settings)
-├── core/
-│   ├── models.py           # Pydantic schemas (params, presets, jobs)
-│   ├── presets.py          # Built-in preset registry
-│   ├── exporters/
-│   │   ├── video.py        # MP4/MOV via ffmpeg-python
-│   │   ├── heic.py         # HEIC still via pillow-heif
-│   │   └── live_photo.py   # Live Photo bundler (HEIC+MOV+manifest)
-│   └── job_queue.py        # Async job management
-├── generators/
-│   ├── base.py             # Abstract Generator base class
-│   ├── registry.py         # Generator plugin registry
-│   ├── game_of_life.py
-│   ├── mandelbrot.py
-│   ├── julia.py
-│   ├── l_system.py
-│   └── color_cycle.py
-├── api/
-│   ├── routes.py           # REST endpoints
-│   ├── websocket.py        # Real-time frame streaming (pending)
-│   └── schemas.py          # API request/response models
-├── preview/
-│   ├── mjpeg.py            # MJPEG over HTTP endpoint
-│   └── websocket.py        # Binary WebSocket frame streaming (pending)
-└── utils/
-    ├── colors.py           # Colormaps, palettes
-    ├── math.py             # Numba-accelerated kernels
-    └── video.py            # Frame utilities
+backend/
+├── src/fluxwall/
+│   ├── main.py                 # FastAPI app entry (also serves frontend/dist at /)
+│   ├── streamlit_app.py        # Streamlit UI entry
+│   ├── config.py               # Settings (pydantic-settings)
+│   ├── core/
+│   │   ├── models.py           # Pydantic schemas (params, presets, jobs)
+│   │   ├── presets.py          # Built-in preset registry
+│   │   ├── exporters/
+│   │   │   ├── video.py        # MP4/MOV via ffmpeg-python
+│   │   │   ├── heic.py         # HEIC still via pillow-heif
+│   │   │   └── live_photo.py   # Live Photo bundler (HEIC+MOV+manifest)
+│   │   └── job_queue.py        # Async job management
+│   ├── generators/
+│   │   ├── base.py             # Abstract Generator base class
+│   │   ├── registry.py         # Generator plugin registry
+│   │   ├── game_of_life.py
+│   │   ├── mandelbrot.py
+│   │   ├── julia.py
+│   │   ├── l_system.py
+│   │   └── color_cycle.py
+│   ├── api/
+│   │   ├── routes.py           # REST endpoints
+│   │   ├── websocket.py        # Real-time frame streaming (pending)
+│   │   └── schemas.py          # API request/response models
+│   ├── preview/
+│   │   ├── mjpeg.py            # MJPEG over HTTP endpoint
+│   │   └── websocket.py        # Binary WebSocket frame streaming (pending)
+│   └── utils/
+│       ├── colors.py           # Colormaps, palettes
+│       ├── math.py             # Numba-accelerated kernels
+│       └── video.py            # Frame utilities
+├── presets/                    # Generator preset JSON
+├── assets/                     # Image assets/colormaps
+├── tests/                      # Mirror of src/ structure
+├── pyproject.toml              # uv project
+└── Dockerfile                  # Backend image (compose)
+
+frontend/                       # React 19 + Vite + TS SPA
+├── src/
+├── package.json
+└── Dockerfile                  # nginx image (compose)
 ```
 
 ## Generator Interface
@@ -122,9 +134,9 @@ class Generator(ABC):
 ```
 
 ## Adding a New Generator
-1. Create `src/fluxwall/generators/<name>.py` with class extending `Generator`
-2. Register in `src/fluxwall/generators/registry.py` (auto-discovery via `__init__.py`)
-3. Add preset JSON files in `presets/<name>/`
+1. Create `backend/src/fluxwall/generators/<name>.py` with class extending `Generator`
+2. Register in `backend/src/fluxwall/generators/registry.py` (auto-discovery via `__init__.py`)
+3. Add preset JSON files in `backend/presets/<name>/`
 4. No other changes needed — API/UI auto-discovers
 
 ## Export Formats
@@ -159,7 +171,7 @@ just deploy       # Railway deploy (from main branch only)
 ```
 
 ## Testing
-- Unit tests in `tests/` mirroring `src/` structure
+- Unit tests in `backend/tests/` mirroring `backend/src/` structure
 - `pytest -v` for verbose, `pytest --cov=fluxwall` for coverage
 - Generator tests: verify frame output shape, dtype, parameter validation
 
