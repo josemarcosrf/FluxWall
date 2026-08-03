@@ -1,5 +1,6 @@
 # Dockerfile - Frontend (nginx serving React SPA)
 # Multi-stage: build React app, then serve with nginx
+# Build context: frontend/ (set via Railway rootDirectory)
 
 # ─── Stage 1: Build the React SPA ────────────────────────────────
 FROM node:22-alpine AS builder

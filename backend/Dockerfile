@@ -1,6 +1,6 @@
 # Dockerfile - Backend (FastAPI only, no frontend)
 # Serves API at /api, health at /health, exports at /exports
-# Build context: repository root (.)
+# Build context: backend/ (set via Railway rootDirectory)
 
 # ─── Base image ──────────────────────────────────────────────────
 FROM python:3.12-slim
@@ -19,18 +19,17 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /app
 
-# Backend deps (layer caching) - copy to /app/backend to match pyproject.toml paths
-COPY backend/pyproject.toml backend/uv.lock backend/README.md /app/backend/
-COPY backend/README.md /app/README.md
-RUN cd /app/backend && uv sync --frozen --no-cache --no-dev
+# Backend deps (layer caching)
+COPY pyproject.toml uv.lock README.md ./
+RUN uv sync --frozen --no-cache --no-dev
 
 # Backend source + resources
-COPY backend/src /app/backend/src
-COPY backend/presets /app/backend/presets
-COPY backend/assets /app/backend/assets
-COPY backend/scripts /app/backend/scripts
+COPY src /app/src
+COPY presets /app/presets
+COPY assets /app/assets
+COPY scripts /app/scripts
 
-WORKDIR /app/backend
+WORKDIR /app
 
 # Expose port (Railway assigns $PORT)
 ENV PORT=8000
