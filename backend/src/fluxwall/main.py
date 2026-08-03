@@ -11,9 +11,6 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.responses import Response
-from starlette.types import Scope
 
 from fluxwall.api.routes import router as api_router
 from fluxwall.api.websocket import router as ws_router
@@ -25,22 +22,6 @@ from fluxwall.generators import discover_generators
 logger = logging.getLogger(__name__)
 
 configure_logging()
-
-
-class SPAStaticFiles(StaticFiles):
-    """StaticFiles that falls back to ``index.html`` for unknown paths.
-
-    Lets the React router (browser history) handle client-side routes like
-    ``/studio`` while still serving hashed assets from the built ``dist``.
-    """
-
-    async def get_response(self, path: str, scope: Scope) -> Response:
-        try:
-            return await super().get_response(path, scope)
-        except StarletteHTTPException as exc:
-            if exc.status_code == 404:
-                return await super().get_response('index.html', scope)
-            raise
 
 
 @asynccontextmanager
@@ -67,6 +48,9 @@ def create_app() -> FastAPI:
         description='Parametric iOS Live Wallpaper Generator API',
         version=settings.app_version,
         lifespan=lifespan,
+        docs_url=None if not settings.debug else '/docs',
+        redoc_url=None if not settings.debug else '/redoc',
+        openapi_url=None if not settings.debug else '/openapi.json',
     )
 
     # CORS
@@ -100,12 +84,6 @@ def create_app() -> FastAPI:
         StaticFiles(directory=str(settings.exports_dir), check_dir=False),
         name='exports',
     )
-
-    # Serve the built React frontend (SPA) at the root when present.
-    # Registered last so /api, /health and /exports win over the catch-all.
-    webapp_dist = settings.base_dir.parent / 'frontend' / 'dist'
-    if webapp_dist.exists():
-        app.mount('/', SPAStaticFiles(directory=str(webapp_dist), html=True), name='webapp')
 
     return app
 
