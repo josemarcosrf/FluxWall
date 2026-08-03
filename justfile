@@ -67,6 +67,12 @@ docker-up:
 docker-run: docker-build
 	docker compose up -d
 
+docker-api:
+	docker compose up api
+
+docker-frontend:
+	docker compose up frontend
+
 deploy:
 	railway up --detach
 

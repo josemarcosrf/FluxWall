@@ -1,10 +1,30 @@
 services:
-  fluxwall:
+  # ─── Frontend: nginx serving React SPA ────────────────────────
+  frontend:
     build:
-      context: .
+      context: ./frontend
       dockerfile: Dockerfile
     environment:
+      - NODE_ENV=production
+    ports:
+      - "4000:80"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    depends_on:
+      - api
+
+  # ─── Backend: FastAPI serving API only ────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
       - PORT=8000
+      - DEBUG=false
     ports:
       - "8000:8000"
     volumes:
