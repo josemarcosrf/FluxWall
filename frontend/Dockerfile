@@ -18,8 +18,10 @@ FROM nginx:alpine
 # Copy built SPA
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy nginx config template (will be processed by envsubst)
+# Copy nginx config template and custom entrypoint
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Expose port
 EXPOSE 80
@@ -28,4 +30,5 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost/ || exit 1
 
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["nginx", "-g", "daemon off;"]
