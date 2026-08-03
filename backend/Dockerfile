@@ -1,4 +1,5 @@
 # Dockerfile - FluxWall backend (FastAPI)
+# Build context is the repo root (see docker-compose.yml); paths are repo-relative.
 FROM python:3.12-slim
 
 # System dependencies for OpenCV, pillow-heif, ffmpeg
@@ -15,15 +16,19 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /app
 
-# Install Python dependencies first (layer caching)
-COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-cache --no-dev
+# Install Python dependencies first (layer caching).
+# README.md must be present: backend/pyproject.toml declares readme = "../README.md".
+COPY README.md backend/pyproject.toml backend/uv.lock ./
+RUN mkdir -p /app/backend && cp pyproject.toml uv.lock /app/backend/ && \
+    cd /app/backend && uv sync --frozen --no-cache --no-dev
 
 # Copy application source and runtime resources
-COPY src ./src
-COPY presets ./presets
-COPY assets ./assets
-COPY scripts ./scripts
+COPY backend/src /app/backend/src
+COPY backend/presets /app/backend/presets
+COPY backend/assets /app/backend/assets
+COPY backend/scripts /app/backend/scripts
+
+WORKDIR /app/backend
 
 # Expose port (Railway assigns $PORT)
 ENV PORT=8000
