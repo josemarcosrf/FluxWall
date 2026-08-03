@@ -34,7 +34,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 WORKDIR /app
 
 # Backend deps (layer caching)
-COPY backend/pyproject.toml backend/uv.lock ./
+COPY README.md backend/pyproject.toml backend/uv.lock ./
 RUN mkdir -p /app/backend && cp pyproject.toml uv.lock /app/backend/ && \
     cd /app/backend && uv sync --frozen --no-cache --no-dev
 
