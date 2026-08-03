@@ -18,8 +18,8 @@ FROM nginx:alpine
 # Copy built SPA
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy nginx config template (will be processed by envsubst)
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 
 # Expose port
 EXPOSE 80
