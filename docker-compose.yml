@@ -1,28 +1,18 @@
 services:
-  backend:
+  fluxwall:
     build:
-      context: ./backend
+      context: .
+      dockerfile: Dockerfile
     environment:
       - PORT=8000
     ports:
       - "8000:8000"
     volumes:
-      - ./backend/exports:/app/exports
-      - ./backend/output:/app/output
+      - ./backend/exports:/app/backend/exports
+      - ./backend/output:/app/backend/output
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 5s
-
-  frontend:
-    build:
-      context: ./frontend
-    depends_on:
-      backend:
-        condition: service_healthy
-    environment:
-      - VITE_API_BASE=http://localhost:8000
-    ports:
-      - "80:80"
