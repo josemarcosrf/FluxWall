@@ -103,13 +103,11 @@ backend/
 ├── presets/                    # Generator preset JSON
 ├── assets/                     # Image assets/colormaps
 ├── tests/                      # Mirror of src/ structure
-├── pyproject.toml              # uv project
-└── Dockerfile                  # Backend image (compose)
+└── pyproject.toml              # uv project
 
 frontend/                       # React 19 + Vite + TS SPA
 ├── src/
-├── package.json
-└── Dockerfile                  # nginx image (compose)
+└── package.json
 ```
 
 ## Generator Interface

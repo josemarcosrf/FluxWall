@@ -53,16 +53,14 @@ backend/                     # FastAPI + Streamlit (generators, presets, exporte
 ├── presets/                 # Generator preset JSON
 ├── assets/                  # Shared images/colormaps
 ├── tests/                   # Mirror of src/ structure
-├── pyproject.toml           # Python project (uv)
-└── Dockerfile               # Backend image (compose)
+└── pyproject.toml           # Python project (uv)
 
 frontend/                    # React 19 + Vite + TS SPA
 ├── src/                     # pages, components, lib
-├── package.json
-└── Dockerfile               # nginx image (compose)
+└── package.json
 
-docker-compose.yml           # Runs backend + frontend
-Dockerfile                   # Railway: backend + baked frontend SPA
+Dockerfile                   # Single image: backend + baked frontend SPA
+docker-compose.yml           # Runs FluxWall locally (same single image)
 ```
 
 ## Generator Interface
