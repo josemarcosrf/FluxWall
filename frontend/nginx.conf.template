@@ -24,11 +24,12 @@ server {
         try_files $uri $uri/ /index.html;
     }
 
-    # Proxy API calls to backend service (Railway private networking)
-    # Use the canonical <service>.railway.internal FQDN (the bare service alias
-    # does not resolve reliably on Railway's private mesh).
+    # Proxy API calls to the backend. The upstream is injected from the
+    # FLUXWALL_API_URL env var (entrypoint runs envsubst), so the same image
+    # works under docker-compose (http://api:8000) and Railway
+    # (http://fluxwall.railway.internal:8000) without hardcoding either.
     location /api/ {
-        proxy_pass http://fluxwall.railway.internal:8000;
+        proxy_pass ${FLUXWALL_API_URL};
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -40,7 +41,7 @@ server {
 
     # Proxy WebSocket for preview streaming
     location /ws/ {
-        proxy_pass http://fluxwall.railway.internal:8000;
+        proxy_pass ${FLUXWALL_API_URL};
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
