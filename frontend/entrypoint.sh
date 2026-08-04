@@ -5,7 +5,7 @@ set -e
 
 # Set default API URL if not provided or invalid
 if [ -z "$RAILWAY_SERVICE_FLUXWALL_URL" ] || ! echo "$RAILWAY_SERVICE_FLUXWALL_URL" | grep -q '^https\?://'; then
-    export RAILWAY_SERVICE_FLUXWALL_URL="http://fluxwall:8000"
+    export RAILWAY_SERVICE_FLUXWALL_URL="http://fluxwall.railway.internal:8000"
 fi
 
 # Process template with envsubst
