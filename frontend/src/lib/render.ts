@@ -383,8 +383,8 @@ export function curveDraw(params: Params, ctx: CanvasRenderingContext2D, w: numb
     if (s1 <= s0) continue;
     ctx.strokeStyle = cmapCss(cmap, b / buckets + phase * 0.15);
     ctx.beginPath();
-    ctx.moveTo(p.xs[s0] * kx + ox, p.ys[s0] * ky + oy);
-    for (let i = s0 + 1; i <= s1; i++) ctx.lineTo(p.xs[i] * kx + ox, p.ys[i] * ky + oy);
+    ctx.moveTo(p.xs[s0] * kx + ox, h - (p.ys[s0] * ky + oy));
+    for (let i = s0 + 1; i <= s1; i++) ctx.lineTo(p.xs[i] * kx + ox, h - (p.ys[i] * ky + oy));
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
