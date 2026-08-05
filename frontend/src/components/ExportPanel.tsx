@@ -137,8 +137,8 @@ export function ExportPanel({ gen, preset, params, output, onFormatChange }: Exp
           <div className={'progress' + (done ? ' ok' : '')}>
             <i style={{ width: pct + '%' }} />
           </div>
-          <div className="export-status">
-            <span id="ep-status">{done ? 'Completed' : 'Rendering&hellip;'}</span>
+<div className="export-status">
+              <span id="ep-status">{done ? 'Completed' : 'Rendering…'}</span>
             <span className="num" id="ep-pct">
               {pct}%
             </span>

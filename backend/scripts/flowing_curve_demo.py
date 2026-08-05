@@ -10,7 +10,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import os
 import shutil
 import subprocess
 import sys
@@ -18,12 +17,12 @@ import time
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib.collections import LineCollection
 import numpy as np
+from matplotlib.collections import LineCollection
 from numpy.typing import NDArray
-
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 

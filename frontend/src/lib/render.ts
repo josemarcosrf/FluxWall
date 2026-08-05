@@ -403,6 +403,8 @@ export class PreviewEngine {
   private last = 0;
   private raf = 0;
   private gol: GolState | null = null;
+  private useRaf = true;
+  private visibilityHandler: (() => void) | null = null;
 
   isPlaying(): boolean {
     return this.playing;
@@ -418,18 +420,35 @@ export class PreviewEngine {
     this.phase = 0;
     this.frame = 0;
     if (generator === 'game_of_life') this.gol = golInit(params);
+    
+    // Handle tab visibility changes to prevent drift
+    this.visibilityHandler = () => {
+      if (document.hidden) {
+        this.last = 0; // Reset last time on tab hide
+      }
+    };
+    document.addEventListener('visibilitychange', this.visibilityHandler);
+    
     this.loop();
   }
 
   private loop(): void {
     const tick = (now: number): void => {
       if (!this.playing) return;
+      
+      // If tab was hidden, last will be 0, so dt = 0 (no phase jump)
       const dt = this.last ? now - this.last : 0;
       this.last = now;
       this.phase += (dt / 1000) * (this.generator === 'flowing_curve' ? 0.14 : 0.1);
       this.frame++;
       this.render();
-      this.raf = requestAnimationFrame(tick);
+      
+      // Use requestAnimationFrame when visible, setTimeout as fallback
+      if (this.useRaf && !document.hidden) {
+        this.raf = requestAnimationFrame(tick);
+      } else {
+        this.raf = window.setTimeout(tick, 1000 / 30) as unknown as number;
+      }
     };
     this.raf = requestAnimationFrame(tick);
   }
@@ -479,9 +498,16 @@ export class PreviewEngine {
   }
 
   stop(): void {
-    if (this.raf) cancelAnimationFrame(this.raf);
+    if (this.raf) {
+      if (this.useRaf) cancelAnimationFrame(this.raf);
+      else clearTimeout(this.raf);
+    }
     this.raf = 0;
     this.last = 0;
+    if (this.visibilityHandler) {
+      document.removeEventListener('visibilitychange', this.visibilityHandler);
+      this.visibilityHandler = null;
+    }
   }
 }
 
@@ -495,16 +521,12 @@ export function renderStill(canvas: HTMLCanvasElement, generator: string, params
     for (let i = 0; i < 24; i++) golStep(state, String(params.rule_birth || '3'), String(params.rule_survive || '23'));
     golDraw(state, params, ctx, canvas.width, canvas.height, phase || 0);
   } else if (generator === 'mandelbrot' || generator === 'julia') {
-    const fw = 40;
-    const fh = 87;
+    // Render at canvas resolution for sharp thumbnails
+    const fw = canvas.width;
+    const fh = canvas.height;
     const field = fractalField(generator, params, fw, fh, 0, 0);
     const img = fieldToImage(field, fw, fh, String(params.colormap || 'magma'), (1 / (Number(params.max_iter) || 300)) * 12, 0);
-    const tmp = document.createElement('canvas');
-    tmp.width = fw;
-    tmp.height = fh;
-    tmp.getContext('2d')!.putImageData(img, 0, 0);
-    ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(tmp, 0, 0, canvas.width, canvas.height);
+    ctx.putImageData(img, 0, 0);
   } else if (generator === 'flowing_curve') {
     curveDraw(params, ctx, canvas.width, canvas.height, 0.62);
   }

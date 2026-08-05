@@ -139,7 +139,7 @@ function PresetCard({ g, p }: { g: Generator; p: Preset }): React.JSX.Element {
             <span>Scaffolded</span>
           </>
         ) : (
-          <StillThumb generator={g.name} params={{ ...defaultsFor(g), ...p.params }} width={60} height={130} phase={0.62} />
+          <StillThumb generator={g.name} params={{ ...defaultsFor(g), ...p.params }} width={120} height={260} phase={0.62} />
         )}
       </div>
       <b>{friendlyName(p.name)}</b>
