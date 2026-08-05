@@ -2,7 +2,6 @@ import asyncio
 import os
 import signal
 import subprocess
-import sys
 from pathlib import Path
 
 API_PORT = 8000

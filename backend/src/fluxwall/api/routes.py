@@ -263,7 +263,7 @@ def _run_export_task(
         exporter.export_from_generator(frames, params.total_frames)
         zip_path = exporter.create_ios_import_package(
             output_dir,
-            output_dir / f'livephoto_{job.id[:8]}.zip',
+            output_dir / f'livephoto_{job.id[:8]}.pvt',
         )
         job.output_path = str(zip_path)
         return
@@ -348,7 +348,7 @@ async def _do_export(request: ExportRequest) -> ExportStartResponse:
 
     ext = request.options.format.value
     if request.options.format == ExportFormat.LIVE_PHOTO:
-        ext = 'zip'
+        ext = 'pvt'
 
     return ExportStartResponse(
         job_id=UUID(job_id),

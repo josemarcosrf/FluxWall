@@ -233,7 +233,7 @@ class FlowingCurveGenerator(Generator):
                 'enum': ['uzumaki', 'linear', 'log', 'sqrt', 'sin', 'golden', 'poly'],
                 'default': 'uzumaki',
             },
-            'steps': {'type': 'integer', 'minimum': 100, 'maximum': 10000, 'default': 2000},
+            'steps': {'type': 'integer', 'minimum': 500, 'maximum': 10000, 'default': 2000},
             'step_size': {'type': 'number', 'minimum': 0.0001, 'maximum': 1.0, 'default': 0.008},
             'omega': {'type': 'number', 'minimum': 0.0, 'maximum': 10.0, 'default': 0.15},
             'exp': {'type': 'number', 'minimum': 0.1, 'maximum': 10.0, 'default': 0.5},

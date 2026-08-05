@@ -250,7 +250,7 @@ def stamp_device_metadata(motion_mov: Path) -> None:
     import objc  # type: ignore[import-untyped]
     from Foundation import NSURL  # type: ignore[import-untyped]
 
-    def _item(key: str, value: str) -> 'AVFoundation.AVMutableMetadataItem':
+    def _item(key: str, value: str) -> AVFoundation.AVMutableMetadataItem:
         item = AVFoundation.AVMutableMetadataItem.metadataItem()
         item.setKey_(key)
         item.setKeySpace_('mdta')
