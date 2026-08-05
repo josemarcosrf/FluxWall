@@ -177,7 +177,7 @@ class LivePhotoExporter:
         import zipfile
 
         bundle_dir = Path(bundle_dir)
-        output_zip = bundle_dir.with_suffix('.pvt') if output_zip is None else Path(output_zip)
+        output_zip = bundle_dir.with_suffix('.zip') if output_zip is None else Path(output_zip)
         output_zip = output_zip.resolve()
 
         with zipfile.ZipFile(output_zip, 'w', zipfile.ZIP_DEFLATED) as zf:

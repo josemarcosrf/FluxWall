@@ -348,7 +348,7 @@ async def _do_export(request: ExportRequest) -> ExportStartResponse:
 
     ext = request.options.format.value
     if request.options.format == ExportFormat.LIVE_PHOTO:
-        ext = 'pvt'
+        ext = 'zip'
 
     return ExportStartResponse(
         job_id=UUID(job_id),
